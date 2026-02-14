@@ -746,7 +746,7 @@ async def sb_command(interaction: discord.Interaction, username: str = None):
         summary += f"📊 **Skill Average:** {skill_avg:.1f}\n\n"
 
         # Show all main skills sorted by level (highest to lowest)
-        summary += "**Skills:**\n"
+        summary += "**Skills:**\n```\n"
         skills = skill_analysis.get('skills', {})
         main_skill_names = ['combat', 'mining', 'farming', 'foraging', 'fishing', 'enchanting', 'alchemy', 'taming']
 
@@ -760,7 +760,9 @@ async def sb_command(interaction: discord.Interaction, username: str = None):
             filled = int(progress / 10)
             empty = 10 - filled
             bar = f"{'█' * filled}{'░' * empty}"
-            summary += f"**{skill_name.title():<12}** {level:>2} {bar} {progress:>5.1f}%\n"
+            summary += f"{skill_name.title():<12} {level:>2} {bar} {progress:>5.1f}%\n"
+
+        summary += "```\n"
 
     # Slayers
     if slayer_analysis:
