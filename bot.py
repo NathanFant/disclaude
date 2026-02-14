@@ -15,6 +15,12 @@ from user_profiles import user_profiles
 from scheduler import smart_scheduler
 from time_parser import time_parser
 
+# Agent tools
+from tool_definitions import TOOLS
+from tool_definitions_emergent import EMERGENT_TOOLS
+from tools import tool_executor
+from tools_emergent import EmergentTools
+
 # Initialize Discord bot
 intents = discord.Intents.default()
 intents.message_content = True
@@ -31,6 +37,12 @@ rate_limits = defaultdict(lambda: deque(maxlen=config.RATE_LIMIT_MESSAGES))
 
 # Personality tracker
 personality = PersonalityTracker()
+
+# Emergent tools (initialized after bot is created)
+emergent_tools = EmergentTools(bot)
+
+# Combine all tools
+ALL_TOOLS = TOOLS + EMERGENT_TOOLS
 
 
 def check_rate_limit(user_id: int) -> bool:
@@ -89,8 +101,8 @@ def determine_model_complexity(content: str, conversation_history: list) -> str:
     return config.CLAUDE_MODEL_MEDIUM
 
 
-async def get_claude_response(messages: list, model: str = None) -> str:
-    """Get response from Claude API with optional model override."""
+async def get_claude_response(messages: list, model: str = None, context: dict = None) -> str:
+    """Get response from Claude API with tool use support."""
     if model is None:
         # Determine model based on the last user message
         last_message = messages[-1]['content'] if messages else ""
@@ -99,15 +111,74 @@ async def get_claude_response(messages: list, model: str = None) -> str:
     # Get evolving personality system prompt
     system_prompt = personality.get_system_prompt()
 
+    # Add context for agent
+    if context:
+        system_prompt += f"\n\nCurrent context:"
+        system_prompt += f"\n- User ID: {context.get('user_id')}"
+        system_prompt += f"\n- Channel ID: {context.get('channel_id')}"
+        system_prompt += f"\n- Guild ID: {context.get('guild_id')}"
+        if context.get('username'):
+            system_prompt += f"\n- Username: {context.get('username')}"
+
     try:
+        # Initial request with tools
         response = await asyncio.to_thread(
             client.messages.create,
             model=model,
-            max_tokens=2048,  # Increased for better responses
-            system=system_prompt,  # Evolving personality
+            max_tokens=2048,
+            system=system_prompt,
+            tools=ALL_TOOLS,  # Enable tool use
             messages=messages
         )
+
+        # Handle tool use
+        if response.stop_reason == "tool_use":
+            # Collect all tool uses
+            tool_uses = [block for block in response.content if block.type == "tool_use"]
+
+            # Execute all tools
+            tool_results = []
+            for tool_use in tool_uses:
+                print(f"[AGENT] 🔧 Using tool: {tool_use.name}")
+
+                # Determine which executor to use
+                if tool_use.name in ['send_discord_message', 'read_message_history',
+                                      'check_previous_actions', 'get_discord_context']:
+                    # Emergent tools
+                    result = await emergent_tools.execute(tool_use.name, tool_use.input)
+                else:
+                    # Standard tools
+                    result = await tool_executor.execute(tool_use.name, tool_use.input)
+
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": tool_use.id,
+                    "content": result
+                })
+
+            # Send tool results back to Claude
+            messages_with_results = messages + [
+                {"role": "assistant", "content": response.content},
+                {"role": "user", "content": tool_results}
+            ]
+
+            # Get final response
+            final_response = await asyncio.to_thread(
+                client.messages.create,
+                model=model,
+                max_tokens=2048,
+                system=system_prompt,
+                tools=ALL_TOOLS,
+                messages=messages_with_results
+            )
+
+            # Extract text from final response
+            text_blocks = [block.text for block in final_response.content if hasattr(block, 'text')]
+            return '\n'.join(text_blocks) if text_blocks else "I completed the task!"
+
+        # No tool use, just return text
         return response.content[0].text
+
     except Exception as e:
         return f"Error: {str(e)}"
 
@@ -266,9 +337,17 @@ async def on_message(message):
 
     # Show typing indicator
     async with message.channel.typing():
-        # Get Claude's response
+        # Build context for agent
+        context = {
+            'user_id': str(message.author.id),
+            'channel_id': str(message.channel.id),
+            'guild_id': str(message.guild.id) if message.guild else None,
+            'username': message.author.name
+        }
+
+        # Get Claude's response with tool support
         messages_list = list(conversation)
-        response_text = await get_claude_response(messages_list)
+        response_text = await get_claude_response(messages_list, context=context)
 
         # Add assistant response to conversation
         conversation.append({"role": "assistant", "content": response_text})
