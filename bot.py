@@ -113,12 +113,20 @@ async def get_claude_response(messages: list, model: str = None, context: dict =
 
     # Add context for agent
     if context:
+        print(f"[AGENT] Context being passed to Claude:")
+        print(f"[AGENT]   User ID: {context.get('user_id')}")
+        print(f"[AGENT]   Username: {context.get('username')}")
+        print(f"[AGENT]   Channel ID: {context.get('channel_id')}")
+        print(f"[AGENT]   Guild ID: {context.get('guild_id')}")
+
         system_prompt += f"\n\nCurrent context:"
         system_prompt += f"\n- User ID: {context.get('user_id')}"
+        system_prompt += f"\n- Username: {context.get('username')}"
         system_prompt += f"\n- Channel ID: {context.get('channel_id')}"
         system_prompt += f"\n- Guild ID: {context.get('guild_id')}"
-        if context.get('username'):
-            system_prompt += f"\n- Username: {context.get('username')}"
+        system_prompt += f"\n\nIMPORTANT: When responding to messages, DO NOT use send_discord_message to reply."
+        system_prompt += f"\nYour response text is automatically sent to the user in the channel they messaged you from."
+        system_prompt += f"\nOnly use send_discord_message if you need to message a DIFFERENT channel or user than who is currently talking to you."
 
     try:
         # Initial request with tools
