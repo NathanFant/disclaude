@@ -732,7 +732,7 @@ async def sb_command(interaction: discord.Interaction, username: str = None):
                 filled = int(progress / 10)
                 empty = 10 - filled
                 bar = f"{'█' * filled}{'░' * empty}"
-                summary += f"**{skill_name.title()}** {level} {bar} {progress:.1f}%\n"
+                summary += f"**{skill_name.title():<12}** {level:>2} {bar} {progress:>5.1f}%\n"
 
     # Slayers
     if slayer_analysis:
