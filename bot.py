@@ -738,20 +738,22 @@ async def sb_command(interaction: discord.Interaction, username: str = None):
         skill_avg = skill_analysis.get('skill_average', 0)
         summary += f"📊 **Skill Average:** {skill_avg:.1f}\n\n"
 
-        # Show all main skills
+        # Show all main skills sorted by level (highest to lowest)
         summary += "**Skills:**\n"
         skills = skill_analysis.get('skills', {})
-        main_skills = ['combat', 'mining', 'farming', 'foraging', 'fishing', 'enchanting', 'alchemy', 'taming']
+        main_skill_names = ['combat', 'mining', 'farming', 'foraging', 'fishing', 'enchanting', 'alchemy', 'taming']
 
-        for skill_name in main_skills:
-            if skill_name in skills:
-                skill_data = skills[skill_name]
-                level = skill_data['level']
-                progress = skill_data.get('progress', 0)
-                filled = int(progress / 10)
-                empty = 10 - filled
-                bar = f"{'█' * filled}{'░' * empty}"
-                summary += f"**{skill_name.title():<12}** {level:>2} {bar} {progress:>5.1f}%\n"
+        # Get main skills that exist and sort by level (descending)
+        main_skills = [(name, skills[name]) for name in main_skill_names if name in skills]
+        main_skills.sort(key=lambda x: x[1]['level'], reverse=True)
+
+        for skill_name, skill_data in main_skills:
+            level = skill_data['level']
+            progress = skill_data.get('progress', 0)
+            filled = int(progress / 10)
+            empty = 10 - filled
+            bar = f"{'█' * filled}{'░' * empty}"
+            summary += f"**{skill_name.title():<12}** {level:>2} {bar} {progress:>5.1f}%\n"
 
     # Slayers
     if slayer_analysis:
