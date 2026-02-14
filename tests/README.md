@@ -1,41 +1,87 @@
-# API Endpoint Tests
+# API Tests
 
-This directory contains tests to validate that the Hypixel and Mojang APIs are being called correctly.
+Comprehensive test suite for validating Hypixel and Mojang API integration.
 
-## Test Files
+## Quick Start
 
-### `test_api_simple.py` (Recommended)
-Simple standalone test using Python's standard library. No dependencies required.
+```bash
+# Run from project root
+python tests/test_api_simple.py
+```
+
+## Test Structure
+
+```
+tests/
+├── README.md                    # This file
+├── test_api_simple.py          # ⭐ Main test suite (no dependencies)
+├── test_api_direct.py          # Async tests (requires aiohttp)
+├── test_hypixel_api.py         # Pytest suite (requires pytest)
+├── test_config.py              # Config validation tests
+├── test_bot_utils.py           # Bot utility tests
+└── diagnostics/                # Diagnostic tests (archived)
+    ├── test_profile_structure.py
+    ├── test_profile_timestamps.py
+    ├── test_profile_selection.py
+    └── test_active_profile_fix.py
+```
+
+## Main Tests
+
+### `test_api_simple.py` ⭐ **Recommended**
+Standalone test using Python's standard library. No dependencies required.
 
 **What it tests:**
-1. ✅ **Mojang API** - Get UUID from username (`NathanFant`)
+1. ✅ **Mojang API** - Get UUID from username
 2. ✅ **Hypixel Skyblock Profiles API** - Get profiles using UUID
 3. ✅ **UUID Format Compatibility** - Test both dashed and non-dashed UUIDs
 
+**Features:**
+- Loads secrets from `.env.local` if available
+- Falls back to dummy tokens for local testing
+- Validates 200 responses for all endpoints
+
 ### `test_api_direct.py`
-Comprehensive async tests using aiohttp (requires dependencies).
+Comprehensive async tests using aiohttp (requires `pip install aiohttp`).
 
 ### `test_hypixel_api.py`
-Pytest-based tests (requires pytest installed).
+Pytest-based tests (requires `pip install pytest aiohttp`).
+
+### `test_config.py` & `test_bot_utils.py`
+Unit tests for bot configuration and utilities.
+
+## Diagnostic Tests
+
+The `diagnostics/` folder contains tests used to investigate and fix the active profile detection issue. These are archived for reference but not needed for regular testing.
 
 ## Running Tests
 
 ### Locally (Limited - No API Key)
 
 ```bash
-python test_api_simple.py
+# From project root
+python tests/test_api_simple.py
 ```
 
 **Expected output:**
 - ✅ Test 1 (Mojang API) will pass
 - ⚠️ Tests 2-3 will skip (no HYPIXEL_API_KEY)
 
-### On Railway (Full Tests)
+### With API Key (.env.local)
 
-1. SSH into your Railway deployment or add as a build step:
+1. Create `.env.local` in project root with your API keys
+2. Run tests:
 
 ```bash
-python test_api_simple.py
+python tests/test_api_simple.py
+```
+
+### On Railway (Full Tests)
+
+SSH into your Railway deployment:
+
+```bash
+python tests/test_api_simple.py
 ```
 
 **Expected output:**
@@ -125,6 +171,17 @@ The bot uses these same API endpoints in `hypixel_client.py`:
 
 - `get_uuid_from_username()` → Uses Mojang API
 - `get_skyblock_profiles()` → Uses Hypixel Skyblock Profiles API
-- `get_active_profile()` → Processes profiles to find most recent
+- `get_active_profile()` → Selects active profile using:
+  1. Profile-level `selected` field (primary)
+  2. Most recent `objectives.*.completed_at` timestamp (fallback)
+  3. First available profile (last resort)
 
 If these tests pass, the bot's API integration is working correctly.
+
+## Test Results Summary
+
+Based on tests with `NathanFant`:
+- ✅ UUID: `47fb7b99858042c3a7b4795af44ea41d`
+- ✅ 5 Skyblock profiles found
+- ✅ Active profile: **Papaya** (selected: true)
+- ✅ All endpoints return 200
