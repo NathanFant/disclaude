@@ -1,75 +1,86 @@
 """User profile storage for linking Discord users to Minecraft usernames."""
-from collections import defaultdict
 from typing import Optional
-import json
-import os
+from database import UserProfile, get_db, init_db
 
 
 class UserProfiles:
-    """Persistent storage for user profiles."""
+    """Persistent storage for user profiles using database."""
 
-    def __init__(self, storage_file: str = "user_profiles.json"):
-        self.storage_file = storage_file
-        # discord_user_id -> minecraft_username
-        self.profiles = {}
-        # discord_user_id -> minecraft_uuid
-        self.uuids = {}
-        self.load()
-
-    def load(self):
-        """Load profiles from disk."""
-        if os.path.exists(self.storage_file):
-            try:
-                with open(self.storage_file, 'r') as f:
-                    data = json.load(f)
-                    # Convert string keys back to ints
-                    self.profiles = {int(k): v for k, v in data.get('profiles', {}).items()}
-                    self.uuids = {int(k): v for k, v in data.get('uuids', {}).items()}
-                    print(f"[USER_PROFILES] Loaded {len(self.profiles)} linked accounts")
-            except Exception as e:
-                print(f"[USER_PROFILES] Error loading profiles: {e}")
-                self.profiles = {}
-                self.uuids = {}
-        else:
-            print("[USER_PROFILES] No existing profiles file, starting fresh")
-
-    def save(self):
-        """Save profiles to disk."""
-        try:
-            data = {
-                'profiles': {str(k): v for k, v in self.profiles.items()},
-                'uuids': {str(k): v for k, v in self.uuids.items()}
-            }
-            with open(self.storage_file, 'w') as f:
-                json.dump(data, f, indent=2)
-            print(f"[USER_PROFILES] Saved {len(self.profiles)} profiles")
-        except Exception as e:
-            print(f"[USER_PROFILES] Error saving profiles: {e}")
+    def __init__(self):
+        # Initialize database tables
+        init_db()
+        print("[USER_PROFILES] Database-backed storage initialized")
 
     def link_user(self, discord_id: int, minecraft_username: str, minecraft_uuid: str):
         """Link a Discord user to their Minecraft account."""
-        self.profiles[discord_id] = minecraft_username
-        self.uuids[discord_id] = minecraft_uuid
-        self.save()  # Persist immediately
-        print(f"[USER_PROFILES] Linked {discord_id} -> {minecraft_username} ({minecraft_uuid})")
+        db = get_db()
+        try:
+            # Check if user already exists
+            existing = db.query(UserProfile).filter(UserProfile.discord_id == discord_id).first()
+
+            if existing:
+                # Update existing
+                existing.minecraft_username = minecraft_username
+                existing.minecraft_uuid = minecraft_uuid
+                print(f"[USER_PROFILES] Updated {discord_id} -> {minecraft_username}")
+            else:
+                # Create new
+                profile = UserProfile(
+                    discord_id=discord_id,
+                    minecraft_username=minecraft_username,
+                    minecraft_uuid=minecraft_uuid
+                )
+                db.add(profile)
+                print(f"[USER_PROFILES] Created {discord_id} -> {minecraft_username}")
+
+            db.commit()
+        except Exception as e:
+            print(f"[USER_PROFILES] Error linking user: {e}")
+            db.rollback()
+        finally:
+            db.close()
 
     def get_username(self, discord_id: int) -> Optional[str]:
         """Get linked Minecraft username for a Discord user."""
-        return self.profiles.get(discord_id)
+        db = get_db()
+        try:
+            profile = db.query(UserProfile).filter(UserProfile.discord_id == discord_id).first()
+            return profile.minecraft_username if profile else None
+        finally:
+            db.close()
 
     def get_uuid(self, discord_id: int) -> Optional[str]:
         """Get linked Minecraft UUID for a Discord user."""
-        return self.uuids.get(discord_id)
+        db = get_db()
+        try:
+            profile = db.query(UserProfile).filter(UserProfile.discord_id == discord_id).first()
+            return profile.minecraft_uuid if profile else None
+        finally:
+            db.close()
 
     def is_linked(self, discord_id: int) -> bool:
         """Check if a Discord user has linked their Minecraft account."""
-        return discord_id in self.profiles
+        db = get_db()
+        try:
+            profile = db.query(UserProfile).filter(UserProfile.discord_id == discord_id).first()
+            return profile is not None
+        finally:
+            db.close()
 
     def unlink_user(self, discord_id: int):
         """Unlink a Discord user from their Minecraft account."""
-        self.profiles.pop(discord_id, None)
-        self.uuids.pop(discord_id, None)
-        self.save()  # Persist immediately
+        db = get_db()
+        try:
+            profile = db.query(UserProfile).filter(UserProfile.discord_id == discord_id).first()
+            if profile:
+                db.delete(profile)
+                db.commit()
+                print(f"[USER_PROFILES] Unlinked {discord_id}")
+        except Exception as e:
+            print(f"[USER_PROFILES] Error unlinking user: {e}")
+            db.rollback()
+        finally:
+            db.close()
 
 
 # Global user profiles instance
