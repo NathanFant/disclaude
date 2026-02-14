@@ -113,13 +113,16 @@ async def get_claude_response(messages: list, model: str = None, context: dict =
 
     # Add context for agent
     if context:
+        current_time = datetime.now()
         print(f"[AGENT] Context being passed to Claude:")
+        print(f"[AGENT]   Current time: {current_time.isoformat()}")
         print(f"[AGENT]   User ID: {context.get('user_id')}")
         print(f"[AGENT]   Username: {context.get('username')}")
         print(f"[AGENT]   Channel ID: {context.get('channel_id')}")
         print(f"[AGENT]   Guild ID: {context.get('guild_id')}")
 
         system_prompt += f"\n\nCurrent context:"
+        system_prompt += f"\n- Current Date/Time: {current_time.strftime('%Y-%m-%d %H:%M:%S')} (ISO: {current_time.isoformat()})"
         system_prompt += f"\n- User ID: {context.get('user_id')}"
         system_prompt += f"\n- Username: {context.get('username')}"
         system_prompt += f"\n- Channel ID: {context.get('channel_id')}"
@@ -127,6 +130,7 @@ async def get_claude_response(messages: list, model: str = None, context: dict =
         system_prompt += f"\n\nIMPORTANT: When responding to messages, DO NOT use send_discord_message to reply."
         system_prompt += f"\nYour response text is automatically sent to the user in the channel they messaged you from."
         system_prompt += f"\nOnly use send_discord_message if you need to message a DIFFERENT channel or user than who is currently talking to you."
+        system_prompt += f"\n\nWhen creating reminders, ALWAYS use a time in the FUTURE relative to the current time shown above."
 
     try:
         # Initial request with tools

@@ -69,8 +69,10 @@ TOOLS = [
                 "time": {
                     "type": "string",
                     "description": (
-                        "ISO 8601 timestamp when the reminder should fire "
-                        "(e.g., '2024-03-15T14:30:00Z' or '2024-03-15T14:30:00+00:00')"
+                        "ISO 8601 timestamp when the reminder should fire. "
+                        "MUST be a time in the FUTURE relative to the current date/time. "
+                        "Format: 'YYYY-MM-DDTHH:MM:SSZ' (e.g., '2026-03-15T14:30:00Z'). "
+                        "Always check the current date from context before setting reminder times."
                     )
                 }
             },
