@@ -5,6 +5,7 @@ from discord.ext import commands
 import anthropic
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
+import re
 import config
 import asyncio
 
@@ -91,6 +92,38 @@ async def on_ready():
         print(f'Failed to sync commands: {e}')
 
 
+def is_bot_mentioned(message) -> bool:
+    """Check if the bot is mentioned by @mention or by name."""
+    # Check for @mention
+    if bot.user.mentioned_in(message):
+        return True
+
+    # Check for DM
+    if isinstance(message.channel, discord.DMChannel):
+        return True
+
+    # Check if bot's name is mentioned in the message (case-insensitive)
+    bot_name = bot.user.display_name.lower()
+    message_lower = message.content.lower()
+
+    # Check for bot name at start, in middle, or with punctuation
+    return bot_name in message_lower
+
+
+def clean_bot_mention(content: str) -> str:
+    """Remove bot mentions and name from message content."""
+    # Remove @mention format
+    content = content.replace(f'<@{bot.user.id}>', '').replace(f'<@!{bot.user.id}>', '')
+
+    # Remove bot name (case-insensitive)
+    bot_name = bot.user.display_name
+    # Match bot name with optional punctuation/whitespace around it
+    pattern = re.compile(rf'\b{re.escape(bot_name)}\b[,:]?\s*', re.IGNORECASE)
+    content = pattern.sub('', content)
+
+    return content.strip()
+
+
 @bot.event
 async def on_message(message):
     """Handle incoming messages."""
@@ -98,8 +131,8 @@ async def on_message(message):
     if message.author == bot.user:
         return
 
-    # Only respond to mentions or DMs
-    if not (bot.user.mentioned_in(message) or isinstance(message.channel, discord.DMChannel)):
+    # Only respond if bot is mentioned or in DM
+    if not is_bot_mentioned(message):
         await bot.process_commands(message)
         return
 
@@ -115,8 +148,16 @@ async def on_message(message):
     channel_id = message.channel.id
     conversation = conversations[channel_id]
 
-    # Clean mention from message
-    content = message.content.replace(f'<@{bot.user.id}>', '').strip()
+    # Clean mention and bot name from message
+    content = clean_bot_mention(message.content)
+
+    # Skip if message is empty after cleaning
+    if not content:
+        await message.reply(
+            "Hi! How can I help you?",
+            mention_author=False
+        )
+        return
 
     # Add user message to conversation
     conversation.append({"role": "user", "content": content})

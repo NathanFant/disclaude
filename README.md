@@ -21,7 +21,8 @@ A feature-rich Discord bot powered by Claude AI with conversation memory, slash 
 
 ### Mention
 
-- Mention the bot (`@BotName`) in any message to get a response with conversation context
+- Mention the bot with `@BotName` OR use its name (e.g., "DisClaude") in any message to get a response with conversation context
+- Works with the bot's actual display name dynamically - no need to hardcode it!
 
 ## Setup
 
@@ -119,10 +120,17 @@ See setup guide: [How to host for free](#)
 
 ### In Discord:
 
-**Mention the bot:**
+**Mention the bot (using @mention):**
 
 ```
-@ClaudeBot what's the weather like today?
+@DisClaude what's the weather like today?
+```
+
+**Or mention by name:**
+
+```
+DisClaude, can you help me with Python?
+Hey DisClaude what's 2+2?
 ```
 
 **Use slash commands:**
