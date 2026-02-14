@@ -218,7 +218,10 @@ async def send_scheduled_message(channel_id: int, message: str):
     try:
         channel = bot.get_channel(channel_id)
         if channel:
-            await channel.send(message)
+            # Split long messages
+            chunks = split_message(message)
+            for chunk in chunks:
+                await channel.send(chunk)
         else:
             print(f"[SCHEDULER] Could not find channel {channel_id}")
     except Exception as e:
@@ -764,7 +767,11 @@ async def sb_command(interaction: discord.Interaction, username: str = None):
     purse = player_data.get('coin_purse', 0)
     summary += f"💰 **Purse:** {purse:,.0f} coins\n"
 
-    await interaction.followup.send(summary)
+    # Split long messages
+    chunks = split_message(summary)
+    await interaction.followup.send(chunks[0])
+    for chunk in chunks[1:]:
+        await interaction.followup.send(chunk)
 
 
 @bot.tree.command(name="sbtips", description="Get personalized Skyblock progression tips")
@@ -814,7 +821,11 @@ async def sbtips_command(interaction: discord.Interaction, username: str = None)
     for tip in tips:
         tips_message += f"{tip}\n\n"
 
-    await interaction.followup.send(tips_message)
+    # Split long messages
+    chunks = split_message(tips_message)
+    await interaction.followup.send(chunks[0])
+    for chunk in chunks[1:]:
+        await interaction.followup.send(chunk)
 
 
 @bot.tree.command(name="sbunlink", description="Unlink your Minecraft account")

@@ -145,14 +145,34 @@ class EmergentTools:
                 "success": False
             })
 
+        # Split message if it exceeds Discord's 2000 character limit
+        def split_long_message(text: str, max_length: int = 2000) -> list:
+            """Split message into chunks."""
+            if len(text) <= max_length:
+                return [text]
+            chunks = []
+            while text:
+                if len(text) <= max_length:
+                    chunks.append(text)
+                    break
+                split_pos = text.rfind('\n', 0, max_length)
+                if split_pos == -1:
+                    split_pos = max_length
+                chunks.append(text[:split_pos])
+                text = text[split_pos:].lstrip()
+            return chunks
+
         # Send message(s)
         sent_count = 0
         errors = []
+        message_chunks = split_long_message(message)
 
         for i in range(repeat):
             try:
-                await recipient.send(message)
-                sent_count += 1
+                # Send all chunks for this repetition
+                for chunk in message_chunks:
+                    await recipient.send(chunk)
+                    sent_count += 1
 
                 # Rate limit between messages if repeating
                 if repeat > 1 and i < repeat - 1:
