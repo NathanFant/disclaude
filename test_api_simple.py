@@ -8,11 +8,27 @@ import sys
 # Load environment variables
 sys.path.insert(0, os.path.dirname(__file__))
 
-# Set dummy tokens for testing (config requires them)
-if 'DISCORD_TOKEN' not in os.environ:
-    os.environ['DISCORD_TOKEN'] = 'MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkw.ABCDEF.1234567890123456789012345678901234567890'
-if 'ANTHROPIC_API_KEY' not in os.environ:
-    os.environ['ANTHROPIC_API_KEY'] = 'sk-ant-api03-dummy_key_for_testing_purposes_only'
+# Load .env.local if it exists
+env_local_path = os.path.join(os.path.dirname(__file__), '.env.local')
+if os.path.exists(env_local_path):
+    print(f"Loading secrets from .env.local...")
+    with open(env_local_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                key, value = line.split('=', 1)
+                os.environ[key] = value
+    print(f"✅ Loaded environment variables from .env.local\n")
+else:
+    # Set dummy tokens for testing (config requires them)
+    if 'DISCORD_TOKEN' not in os.environ:
+        os.environ['DISCORD_TOKEN'] = 'MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkw.ABCDEF.1234567890123456789012345678901234567890'
+    if 'ANTHROPIC_API_KEY' not in os.environ:
+        os.environ['ANTHROPIC_API_KEY'] = 'sk-ant-api03-dummy_key_for_testing_purposes_only'
+
+# Fix typo in .env.local (ATHROPIC -> ANTHROPIC)
+if 'ATHROPIC_API_KEY' in os.environ and 'ANTHROPIC_API_KEY' not in os.environ:
+    os.environ['ANTHROPIC_API_KEY'] = os.environ['ATHROPIC_API_KEY']
 
 import config
 

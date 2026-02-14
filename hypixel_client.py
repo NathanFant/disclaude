@@ -117,30 +117,48 @@ class HypixelClient:
             print(f"[HYPIXEL] No profiles returned for {clean_uuid}")
             return None
 
-        # Find the profile with the most recent save
+        # Method 1: Check for 'selected' field at profile level
+        for profile in profiles:
+            if profile.get('selected'):
+                print(f"[HYPIXEL] Found selected profile: {profile.get('cute_name', 'Unknown')}")
+                return profile
+
+        # Method 2: Find profile with most recent activity (from objectives timestamps)
         active_profile = None
-        latest_save = 0
+        latest_timestamp = 0
 
         for profile in profiles:
             if not profile or 'members' not in profile:
                 print(f"[HYPIXEL] Skipping invalid profile (no members)")
                 continue
 
-            # Try both with and without dashes
+            # Get member data
             member_data = profile['members'].get(clean_uuid) or profile['members'].get(uuid)
+            if not member_data:
+                continue
 
-            if member_data:
-                last_save = member_data.get('last_save', 0)
-                if last_save > latest_save:
-                    latest_save = last_save
-                    active_profile = profile
+            # Look for the most recent timestamp in objectives
+            objectives = member_data.get('objectives', {})
+            if objectives:
+                for _, obj_data in objectives.items():
+                    if isinstance(obj_data, dict) and 'completed_at' in obj_data:
+                        timestamp = obj_data['completed_at']
+                        if timestamp > latest_timestamp:
+                            latest_timestamp = timestamp
+                            active_profile = profile
 
         if active_profile:
-            print(f"[HYPIXEL] Found active profile: {active_profile.get('cute_name', 'Unknown')}")
-        else:
-            print(f"[HYPIXEL] No active profile found for {clean_uuid}")
+            print(f"[HYPIXEL] Found active profile by timestamp: {active_profile.get('cute_name', 'Unknown')}")
+            return active_profile
 
-        return active_profile
+        # Method 3: Fallback to first profile with player data
+        for profile in profiles:
+            if profile.get('members', {}).get(clean_uuid) or profile.get('members', {}).get(uuid):
+                print(f"[HYPIXEL] Using first available profile: {profile.get('cute_name', 'Unknown')}")
+                return profile
+
+        print(f"[HYPIXEL] No active profile found for {clean_uuid}")
+        return None
 
     async def get_player_data_from_profile(self, profile: Dict[str, Any], uuid: str) -> Optional[Dict[str, Any]]:
         """Extract player-specific data from a profile."""
