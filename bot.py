@@ -12,6 +12,8 @@ from personality import PersonalityTracker
 from hypixel_client import hypixel_client
 from skyblock_analyzer import skyblock_analyzer
 from user_profiles import user_profiles
+from scheduler import smart_scheduler
+from time_parser import time_parser
 
 # Initialize Discord bot
 intents = discord.Intents.default()
@@ -132,11 +134,26 @@ def split_message(text: str, max_length: int = config.MAX_MESSAGE_LENGTH) -> lis
     return chunks
 
 
+async def send_scheduled_message(channel_id: int, message: str):
+    """Send a scheduled message to a channel."""
+    try:
+        channel = bot.get_channel(channel_id)
+        if channel:
+            await channel.send(message)
+        else:
+            print(f"[SCHEDULER] Could not find channel {channel_id}")
+    except Exception as e:
+        print(f"[SCHEDULER] Error sending message: {e}")
+
+
 @bot.event
 async def on_ready():
     """Bot startup event."""
     print(f'{bot.user} has connected to Discord!')
     print(f'Bot is in {len(bot.guilds)} guilds')
+
+    # Start scheduler
+    smart_scheduler.start()
 
     # Sync slash commands
     try:
@@ -215,6 +232,34 @@ async def on_message(message):
 
     # Record interaction for personality evolution
     personality.record_interaction(message.author.id, content)
+
+    # Check if this is a reminder request
+    if time_parser.detect_reminder_request(content):
+        parsed = time_parser.parse_time_from_message(content)
+
+        if parsed:
+            target_time, reminder_content = parsed
+            time_until = time_parser.format_time_until(target_time)
+
+            # Schedule the reminder
+            task_id = await smart_scheduler.schedule_reminder(
+                when=target_time,
+                channel_id=message.channel.id,
+                user_id=message.author.id,
+                message=reminder_content,
+                send_function=send_scheduled_message,
+                original_message=content
+            )
+
+            # Confirm the reminder
+            confirmation = (
+                f"✅ Got it! I'll remind you in **{time_until}**\n"
+                f"📝 Reminder: {reminder_content}\n"
+                f"🕐 Time: {target_time.strftime('%B %d, %Y at %I:%M %p')}"
+            )
+
+            await message.reply(confirmation, mention_author=False)
+            return  # Don't process as normal message
 
     # Add user message to conversation
     conversation.append({"role": "user", "content": content})
@@ -650,6 +695,117 @@ async def sbunlink_command(interaction: discord.Interaction):
         f"✅ Unlinked Minecraft account: **{username}**",
         ephemeral=True
     )
+
+
+# Reminder/Scheduler Commands
+
+@bot.tree.command(name="reminders", description="View your scheduled reminders")
+async def reminders_command(interaction: discord.Interaction):
+    """View all scheduled reminders for the user."""
+    user_tasks = smart_scheduler.get_user_tasks(interaction.user.id)
+
+    if not user_tasks:
+        await interaction.response.send_message(
+            "📭 You don't have any scheduled reminders.\n\n"
+            "💡 Tip: Just mention me and say something like:\n"
+            "• \"remind me in 30 minutes to check the oven\"\n"
+            "• \"remind me tomorrow at 3pm to call mom\"\n"
+            "• \"remind me next week about the meeting\"",
+            ephemeral=True
+        )
+        return
+
+    # Format reminders
+    reminder_list = "⏰ **Your Scheduled Reminders**\n\n"
+
+    for i, task in enumerate(user_tasks, 1):
+        when = task['when']
+        message = task['message']
+        time_until = time_parser.format_time_until(when)
+
+        reminder_list += (
+            f"**{i}.** {message}\n"
+            f"   🕐 {when.strftime('%B %d at %I:%M %p')} ({time_until})\n\n"
+        )
+
+    await interaction.response.send_message(reminder_list, ephemeral=True)
+
+
+@bot.tree.command(name="cancelreminder", description="Cancel a scheduled reminder")
+@app_commands.describe(number="The reminder number (from /reminders)")
+async def cancelreminder_command(interaction: discord.Interaction, number: int):
+    """Cancel a specific reminder."""
+    user_tasks = smart_scheduler.get_user_tasks(interaction.user.id)
+
+    if not user_tasks:
+        await interaction.response.send_message(
+            "❌ You don't have any reminders to cancel!",
+            ephemeral=True
+        )
+        return
+
+    if number < 1 or number > len(user_tasks):
+        await interaction.response.send_message(
+            f"❌ Invalid reminder number! You have {len(user_tasks)} reminder(s).\n"
+            f"Use `/reminders` to see the list.",
+            ephemeral=True
+        )
+        return
+
+    # Get the task
+    task = user_tasks[number - 1]
+    task_id = task['id']
+    message = task['message']
+
+    # Cancel it
+    if smart_scheduler.cancel_task(task_id):
+        await interaction.response.send_message(
+            f"✅ Canceled reminder: **{message}**",
+            ephemeral=True
+        )
+    else:
+        await interaction.response.send_message(
+            f"❌ Failed to cancel reminder. It may have already fired.",
+            ephemeral=True
+        )
+
+
+@bot.tree.command(name="allreminders", description="[Admin] View all scheduled reminders")
+async def allreminders_command(interaction: discord.Interaction):
+    """Admin command to view all reminders."""
+    if not is_admin(interaction.user.id):
+        await interaction.response.send_message(
+            "❌ This command is only available to bot administrators.",
+            ephemeral=True
+        )
+        return
+
+    all_tasks = smart_scheduler.get_all_tasks()
+
+    if not all_tasks:
+        await interaction.response.send_message(
+            "📭 No reminders scheduled across all users.",
+            ephemeral=True
+        )
+        return
+
+    reminder_list = f"⏰ **All Scheduled Reminders** ({len(all_tasks)} total)\n\n"
+
+    for i, task in enumerate(all_tasks[:20], 1):  # Limit to 20
+        when = task['when']
+        message = task['message']
+        user_id = task['user_id']
+        time_until = time_parser.format_time_until(when)
+
+        reminder_list += (
+            f"**{i}.** <@{user_id}>: {message}\n"
+            f"   🕐 {when.strftime('%b %d at %I:%M %p')} ({time_until})\n\n"
+        )
+
+    if len(all_tasks) > 20:
+        reminder_list += f"\n...and {len(all_tasks) - 20} more"
+
+    await interaction.response.send_message(reminder_list, ephemeral=True)
 
 
 if __name__ == "__main__":
