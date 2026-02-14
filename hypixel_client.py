@@ -31,12 +31,20 @@ class HypixelClient:
         await self._ensure_session()
         try:
             async with self.session.get(f"{self.MOJANG_API}/{username}") as response:
+                print(f"[HYPIXEL] Mojang API status for {username}: {response.status}")
                 if response.status == 200:
                     data = await response.json()
-                    return data.get('id')
-                return None
+                    uuid = data.get('id')
+                    print(f"[HYPIXEL] Got UUID for {username}: {uuid}")
+                    return uuid
+                elif response.status == 204:
+                    print(f"[HYPIXEL] Username not found: {username}")
+                    return None
+                else:
+                    print(f"[HYPIXEL] Mojang API error: {response.status}")
+                    return None
         except Exception as e:
-            print(f"Error fetching UUID for {username}: {e}")
+            print(f"[HYPIXEL] Error fetching UUID for {username}: {e}")
             return None
 
     async def get_player(self, uuid: str) -> Optional[Dict[str, Any]]:
@@ -57,20 +65,56 @@ class HypixelClient:
         """Get Skyblock profiles for a player."""
         await self._ensure_session()
         try:
-            params = {"key": self.api_key, "uuid": uuid}
+            # Ensure UUID has no dashes (Hypixel API requirement)
+            clean_uuid = uuid.replace('-', '')
+
+            params = {"key": self.api_key, "uuid": clean_uuid}
+            print(f"[HYPIXEL] Fetching Skyblock profiles for UUID: {clean_uuid}")
+
             async with self.session.get(f"{self.BASE_URL}/skyblock/profiles", params=params) as response:
+                print(f"[HYPIXEL] Skyblock API status: {response.status}")
+
                 if response.status == 200:
                     data = await response.json()
-                    return data.get('profiles', [])
-                return None
+
+                    # Check for API errors
+                    if not data.get('success', False):
+                        cause = data.get('cause', 'Unknown error')
+                        print(f"[HYPIXEL] API returned success=false: {cause}")
+                        return None
+
+                    profiles = data.get('profiles')
+                    if profiles is None:
+                        print(f"[HYPIXEL] No Skyblock profiles found for {clean_uuid}")
+                        return []
+
+                    print(f"[HYPIXEL] Found {len(profiles)} Skyblock profile(s)")
+                    return profiles
+                elif response.status == 403:
+                    print(f"[HYPIXEL] API key is invalid or missing!")
+                    return None
+                elif response.status == 429:
+                    print(f"[HYPIXEL] Rate limited!")
+                    return None
+                else:
+                    print(f"[HYPIXEL] HTTP error {response.status}")
+                    text = await response.text()
+                    print(f"[HYPIXEL] Response: {text}")
+                    return None
         except Exception as e:
-            print(f"Error fetching Skyblock profiles: {e}")
+            print(f"[HYPIXEL] Error fetching Skyblock profiles: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
     async def get_active_profile(self, uuid: str) -> Optional[Dict[str, Any]]:
         """Get the player's currently selected Skyblock profile."""
-        profiles = await self.get_skyblock_profiles(uuid)
+        # Clean UUID for consistency
+        clean_uuid = uuid.replace('-', '')
+
+        profiles = await self.get_skyblock_profiles(clean_uuid)
         if not profiles:
+            print(f"[HYPIXEL] No profiles returned for {clean_uuid}")
             return None
 
         # Find the profile with the most recent save
@@ -79,14 +123,22 @@ class HypixelClient:
 
         for profile in profiles:
             if not profile or 'members' not in profile:
+                print(f"[HYPIXEL] Skipping invalid profile (no members)")
                 continue
 
-            member_data = profile['members'].get(uuid)
+            # Try both with and without dashes
+            member_data = profile['members'].get(clean_uuid) or profile['members'].get(uuid)
+
             if member_data:
                 last_save = member_data.get('last_save', 0)
                 if last_save > latest_save:
                     latest_save = last_save
                     active_profile = profile
+
+        if active_profile:
+            print(f"[HYPIXEL] Found active profile: {active_profile.get('cute_name', 'Unknown')}")
+        else:
+            print(f"[HYPIXEL] No active profile found for {clean_uuid}")
 
         return active_profile
 
@@ -95,7 +147,9 @@ class HypixelClient:
         if not profile or 'members' not in profile:
             return None
 
-        return profile['members'].get(uuid)
+        # Try both with and without dashes
+        clean_uuid = uuid.replace('-', '')
+        return profile['members'].get(clean_uuid) or profile['members'].get(uuid)
 
 
 # Global client instance
