@@ -59,37 +59,52 @@ class EmergentTools:
         # Parse target
         target_id = None
         target_type = None
+        recipient = None
 
         # <@123> or <@!123> = user mention
         if target.startswith('<@') and target.endswith('>'):
             target_id = int(target.replace('<@', '').replace('!', '').replace('>', ''))
-            target_type = 'user'
+            try:
+                recipient = await self.bot.fetch_user(target_id)
+                target_type = 'user'
+            except Exception as e:
+                return json.dumps({"error": f"User not found: {target_id} ({str(e)})", "success": False})
+
         # <#123> = channel mention
         elif target.startswith('<#') and target.endswith('>'):
             target_id = int(target.replace('<#', '').replace('>', ''))
-            target_type = 'channel'
-        # Just digits = assume channel ID
+            recipient = self.bot.get_channel(target_id)
+            if recipient:
+                target_type = 'channel'
+            else:
+                return json.dumps({"error": f"Channel not found: {target_id}", "success": False})
+
+        # Just digits = try channel first, then user
         elif target.isdigit():
             target_id = int(target)
-            target_type = 'channel'
+
+            # Try as channel first (faster, uses cache)
+            recipient = self.bot.get_channel(target_id)
+            if recipient:
+                target_type = 'channel'
+            else:
+                # Try as user (slower, makes API call)
+                try:
+                    recipient = await self.bot.fetch_user(target_id)
+                    target_type = 'user'
+                except Exception:
+                    return json.dumps({
+                        "error": f"Target not found: {target_id} (tried both channel and user)",
+                        "success": False
+                    })
         else:
             return json.dumps({"error": f"Invalid target format: {target}", "success": False})
 
-        # Get the target object
-        try:
-            if target_type == 'user':
-                recipient = await self.bot.fetch_user(target_id)
-            else:
-                recipient = self.bot.get_channel(target_id)
-
-            if not recipient:
-                return json.dumps({
-                    "error": f"{target_type.title()} not found: {target_id}",
-                    "success": False
-                })
-
-        except Exception as e:
-            return json.dumps({"error": f"Failed to get {target_type}: {str(e)}", "success": False})
+        if not recipient:
+            return json.dumps({
+                "error": f"Failed to get recipient: {target}",
+                "success": False
+            })
 
         # Send message(s)
         sent_count = 0
