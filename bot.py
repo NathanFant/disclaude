@@ -42,13 +42,56 @@ def check_rate_limit(user_id: int) -> bool:
     return True
 
 
-async def get_claude_response(messages: list) -> str:
-    """Get response from Claude API."""
+def is_admin(user_id: int) -> bool:
+    """Check if user is an admin."""
+    return user_id in config.ADMIN_LIST
+
+
+def determine_model_complexity(content: str, conversation_history: list) -> str:
+    """Determine which Claude model to use based on question complexity."""
+    content_lower = content.lower()
+
+    # Simple questions - use Haiku (fast & cheap)
+    simple_patterns = [
+        'what is', 'who is', 'when is', 'where is',
+        'how are you', 'hello', 'hi ', 'hey',
+        'ping', 'status', 'help'
+    ]
+    if any(pattern in content_lower for pattern in simple_patterns) and len(content) < 50:
+        return config.CLAUDE_MODEL_SIMPLE
+
+    # Complex questions - use Opus (most capable)
+    complex_indicators = [
+        'explain in detail', 'analyze', 'compare and contrast',
+        'write a program', 'create a', 'design a system',
+        'debug', 'refactor', 'optimize',
+        'architecture', 'implementation'
+    ]
+    code_blocks = '```' in content
+    long_question = len(content) > 200
+    long_conversation = len(conversation_history) > 6
+
+    if (any(indicator in content_lower for indicator in complex_indicators) or
+        code_blocks or
+        (long_question and long_conversation)):
+        return config.CLAUDE_MODEL_COMPLEX
+
+    # Default to Sonnet for balanced performance
+    return config.CLAUDE_MODEL_MEDIUM
+
+
+async def get_claude_response(messages: list, model: str = None) -> str:
+    """Get response from Claude API with optional model override."""
+    if model is None:
+        # Determine model based on the last user message
+        last_message = messages[-1]['content'] if messages else ""
+        model = determine_model_complexity(last_message, messages)
+
     try:
         response = await asyncio.to_thread(
             client.messages.create,
-            model=config.CLAUDE_MODEL,
-            max_tokens=1024,
+            model=model,
+            max_tokens=2048,  # Increased for better responses
             messages=messages
         )
         return response.content[0].text
@@ -251,6 +294,81 @@ async def ping_command(interaction: discord.Interaction):
     latency = round(bot.latency * 1000)
     await interaction.response.send_message(
         f"🏓 Pong! Latency: {latency}ms",
+        ephemeral=True
+    )
+
+
+@bot.tree.command(name="admin", description="[Admin] Admin panel and statistics")
+async def admin_command(interaction: discord.Interaction):
+    """Admin-only command to view bot statistics."""
+    if not is_admin(interaction.user.id):
+        await interaction.response.send_message(
+            "❌ This command is only available to bot administrators.",
+            ephemeral=True
+        )
+        return
+
+    total_conversations = len(conversations)
+    total_messages = sum(len(conv) for conv in conversations.values())
+    total_users_tracked = len(rate_limits)
+
+    admin_info = (
+        f"🔧 **Admin Panel**\n\n"
+        f"**Statistics:**\n"
+        f"• Active conversations: {total_conversations}\n"
+        f"• Total messages stored: {total_messages}\n"
+        f"• Users tracked: {total_users_tracked}\n"
+        f"• Guilds: {len(bot.guilds)}\n\n"
+        f"**Your Info:**\n"
+        f"• User ID: {interaction.user.id}\n"
+        f"• Admin: ✅ Yes\n"
+        f"• Total Admins: {len(config.ADMIN_LIST)}"
+    )
+
+    await interaction.response.send_message(admin_info, ephemeral=True)
+
+
+@bot.tree.command(name="setmodel", description="[Admin] Force a specific Claude model for next response")
+@app_commands.describe(
+    model="Choose the model: haiku (fast), sonnet (balanced), opus (powerful)"
+)
+@app_commands.choices(model=[
+    app_commands.Choice(name="Haiku (Fast & Cheap)", value="haiku"),
+    app_commands.Choice(name="Sonnet (Balanced)", value="sonnet"),
+    app_commands.Choice(name="Opus (Most Capable)", value="opus"),
+])
+async def setmodel_command(interaction: discord.Interaction, model: str):
+    """Admin-only command to override model selection."""
+    if not is_admin(interaction.user.id):
+        await interaction.response.send_message(
+            "❌ This command is only available to bot administrators.",
+            ephemeral=True
+        )
+        return
+
+    await interaction.response.send_message(
+        f"✅ Model preference noted: **{model.title()}**\n"
+        f"Note: Currently model selection is automatic. "
+        f"This command is for future functionality.",
+        ephemeral=True
+    )
+
+
+@bot.tree.command(name="clearall", description="[Admin] Clear all conversation histories")
+async def clearall_command(interaction: discord.Interaction):
+    """Admin-only command to clear all conversation histories."""
+    if not is_admin(interaction.user.id):
+        await interaction.response.send_message(
+            "❌ This command is only available to bot administrators.",
+            ephemeral=True
+        )
+        return
+
+    count = len(conversations)
+    conversations.clear()
+
+    await interaction.response.send_message(
+        f"🗑️ Cleared {count} conversation histories!",
         ephemeral=True
     )
 

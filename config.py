@@ -10,7 +10,12 @@ COMMAND_PREFIX = os.getenv("COMMAND_PREFIX", "!")
 
 # Anthropic Configuration
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "").strip()
-CLAUDE_MODEL = "claude-sonnet-4-5-20250929"
+
+# Model Selection (dynamic based on complexity)
+CLAUDE_MODEL_SIMPLE = "claude-haiku-4-5-20251001"      # Fast, cheap - simple questions
+CLAUDE_MODEL_MEDIUM = "claude-sonnet-4-5-20250929"     # Balanced - most questions
+CLAUDE_MODEL_COMPLEX = "claude-opus-4-6"               # Powerful - complex questions
+DEFAULT_MODEL = CLAUDE_MODEL_MEDIUM
 
 # Bot Behavior
 MAX_CONVERSATION_HISTORY = int(os.getenv("MAX_CONVERSATION_HISTORY", "10"))
@@ -20,11 +25,10 @@ MAX_MESSAGE_LENGTH = 2000  # Discord's message limit
 RATE_LIMIT_MESSAGES = int(os.getenv("RATE_LIMIT_MESSAGES", "5"))
 RATE_LIMIT_SECONDS = int(os.getenv("RATE_LIMIT_SECONDS", "60"))
 
-# Debug logging
-print(f"[CONFIG] DISCORD_TOKEN length: {len(DISCORD_TOKEN)}")
-print(f"[CONFIG] DISCORD_TOKEN first 10 chars: {DISCORD_TOKEN[:10]}...")
-print(f"[CONFIG] DISCORD_TOKEN last 10 chars: ...{DISCORD_TOKEN[-10:]}")
-print(f"[CONFIG] Raw env var (first 30): {os.getenv('DISCORD_TOKEN', '')[:30]}")
+# Admin Configuration
+ADMIN_USER_IDS = os.getenv("ADMIN_USER_IDS", "").strip()
+ADMIN_LIST = [int(uid.strip()) for uid in ADMIN_USER_IDS.split(",") if uid.strip()]
+print(f"[CONFIG] Loaded {len(ADMIN_LIST)} admin user(s)")
 
 # Validation
 if not DISCORD_TOKEN:
