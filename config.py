@@ -1,10 +1,8 @@
 """Configuration management for the Discord bot."""
 import os
-from dotenv import load_dotenv
 
-# Only load .env.local for local development, not .env.example
-# Railway will inject environment variables directly, so this won't override them
-load_dotenv(".env.local", override=False)
+# All configuration comes from environment variables
+# Set these in Railway for production or in your shell for local development
 
 # Discord Configuration
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", "").strip()

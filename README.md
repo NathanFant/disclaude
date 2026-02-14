@@ -55,16 +55,32 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Configure Environment
+### 3. Configure Environment Variables
 
+Set these environment variables in your shell (for local testing) or in Railway (for production):
+
+**Required:**
+- `DISCORD_TOKEN` - Get from [Discord Developer Portal](https://discord.com/developers/applications) → Bot
+- `ANTHROPIC_API_KEY` - Get from [Anthropic Console](https://console.anthropic.com) → API Keys
+
+**Optional:**
+- `COMMAND_PREFIX` - Default: `!`
+- `MAX_CONVERSATION_HISTORY` - Default: `10`
+- `RATE_LIMIT_MESSAGES` - Default: `5`
+- `RATE_LIMIT_SECONDS` - Default: `60`
+
+**For local testing:**
 ```bash
-# Copy example environment file
-cp .env.example .env.local
+# Linux/Mac
+export DISCORD_TOKEN="your_token_here"
+export ANTHROPIC_API_KEY="your_key_here"
 
-# Edit .env.local with your credentials
-# You need:
-# - DISCORD_TOKEN (from Discord Developer Portal)
-# - ANTHROPIC_API_KEY (from console.anthropic.com)
+# Windows (PowerShell)
+$env:DISCORD_TOKEN="your_token_here"
+$env:ANTHROPIC_API_KEY="your_key_here"
+
+# Or run with inline env vars (Linux/Mac)
+DISCORD_TOKEN="your_token" ANTHROPIC_API_KEY="your_key" python bot.py
 ```
 
 ### 4. Set Up Discord Bot
@@ -95,15 +111,19 @@ Synced 4 slash command(s)
 
 ## Configuration
 
-Edit `.env.local` to customize:
+All configuration is done through environment variables:
 
-```env
-# Bot behavior
-COMMAND_PREFIX=!                  # Prefix for text commands (optional)
-MAX_CONVERSATION_HISTORY=10       # Messages to remember per channel
-RATE_LIMIT_MESSAGES=5             # Max messages per time window
-RATE_LIMIT_SECONDS=60             # Time window in seconds
-```
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DISCORD_TOKEN` | **Required** | Discord bot token |
+| `ANTHROPIC_API_KEY` | **Required** | Anthropic API key |
+| `COMMAND_PREFIX` | `!` | Prefix for text commands |
+| `MAX_CONVERSATION_HISTORY` | `10` | Messages to remember per channel |
+| `RATE_LIMIT_MESSAGES` | `5` | Max messages per time window |
+| `RATE_LIMIT_SECONDS` | `60` | Time window in seconds |
+
+**Set in Railway:** Project → Variables
+**Set locally:** Use `export` (Linux/Mac) or `$env:` (Windows PowerShell)
 
 ## Hosting
 
