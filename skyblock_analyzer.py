@@ -1,6 +1,14 @@
 """Skyblock data analyzer and progression advisor."""
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 import math
+import base64
+import gzip
+import io
+try:
+    import nbtlib
+    NBT_AVAILABLE = True
+except ImportError:
+    NBT_AVAILABLE = False
 
 
 class SkyblockAnalyzer:
@@ -21,6 +29,74 @@ class SkyblockAnalyzer:
 
     def __init__(self):
         pass
+
+    def _decode_inventory_data(self, data: str) -> Optional[Any]:
+        """Decode base64 + gzip + NBT inventory data."""
+        if not NBT_AVAILABLE or not data:
+            return None
+
+        try:
+            # Decode base64
+            decoded = base64.b64decode(data)
+            # Decompress gzip
+            decompressed = gzip.decompress(decoded)
+            # Parse NBT
+            nbt_data = nbtlib.File.parse(io.BytesIO(decompressed))
+            return nbt_data
+        except Exception as e:
+            print(f"[ANALYZER] Error decoding inventory: {e}")
+            return None
+
+    def _parse_item_name(self, item_tag: Any) -> str:
+        """Extract display name from item NBT."""
+        try:
+            # Try to get display name from tag
+            if hasattr(item_tag, 'get'):
+                tag = item_tag.get('tag', {})
+                display = tag.get('display', {})
+                name = display.get('Name', '')
+                if name:
+                    # Clean up Minecraft formatting codes
+                    import re
+                    name = re.sub(r'§[0-9a-fk-or]', '', str(name))
+                    return name
+
+                # Fall back to item ID
+                item_id = item_tag.get('id', 'Unknown')
+                return str(item_id).replace('minecraft:', '').replace('_', ' ').title()
+            return 'Unknown Item'
+        except Exception:
+            return 'Unknown Item'
+
+    def analyze_equipment(self, player_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze player's armor and equipment."""
+        if not NBT_AVAILABLE:
+            return {'error': 'NBT parsing not available'}
+
+        equipment = {
+            'armor': {'helmet': None, 'chestplate': None, 'leggings': None, 'boots': None},
+            'has_data': False
+        }
+
+        # Try to get armor inventory
+        inv_armor_data = player_data.get('inv_armor', {}).get('data')
+        if inv_armor_data:
+            armor_nbt = self._decode_inventory_data(inv_armor_data)
+            if armor_nbt:
+                try:
+                    items = armor_nbt.get('i', [])
+                    # Armor slots: 0=boots, 1=leggings, 2=chestplate, 3=helmet
+                    slot_names = ['boots', 'leggings', 'chestplate', 'helmet']
+                    for idx, slot_name in enumerate(slot_names):
+                        if idx < len(items) and items[idx]:
+                            item_name = self._parse_item_name(items[idx])
+                            if item_name and item_name != 'Unknown Item':
+                                equipment['armor'][slot_name] = item_name
+                                equipment['has_data'] = True
+                except Exception as e:
+                    print(f"[ANALYZER] Error parsing armor: {e}")
+
+        return equipment
 
     def calculate_skill_level(self, xp: float, skill_name: str = "default") -> Tuple[int, float]:
         """Calculate skill level and progress to next level from XP."""

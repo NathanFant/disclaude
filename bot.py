@@ -744,6 +744,7 @@ async def sb_command(interaction: discord.Interaction, username: str = None):
     # Analyze the data
     skill_analysis = skyblock_analyzer.analyze_skills(player_data)
     slayer_analysis = skyblock_analyzer.analyze_slayers(player_data)
+    equipment_analysis = skyblock_analyzer.analyze_equipment(player_data)
 
     # Generate summary
     profile_name = profile.get('cute_name', 'Unknown')
@@ -772,6 +773,24 @@ async def sb_command(interaction: discord.Interaction, username: str = None):
             summary += f"{skill_name.title():<12} {level:>2} {bar} {progress:>5.1f}%\n"
 
         summary += "```\n"
+
+    # Equipment
+    if equipment_analysis and equipment_analysis.get('has_data'):
+        summary += "\n🛡️ **Equipment:**\n"
+        armor = equipment_analysis.get('armor', {})
+
+        # Display armor in order: helmet, chestplate, leggings, boots
+        armor_slots = [
+            ('helmet', '⛑️'),
+            ('chestplate', '🎽'),
+            ('leggings', '👖'),
+            ('boots', '👢')
+        ]
+
+        for slot_name, emoji in armor_slots:
+            item = armor.get(slot_name)
+            if item:
+                summary += f"{emoji} {item}\n"
 
     # Slayers
     if slayer_analysis:
