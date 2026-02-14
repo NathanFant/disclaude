@@ -9,6 +9,9 @@ import re
 import config
 import asyncio
 from personality import PersonalityTracker
+from hypixel_client import hypixel_client
+from skyblock_analyzer import skyblock_analyzer
+from user_profiles import user_profiles
 
 # Initialize Discord bot
 intents = discord.Intents.default()
@@ -451,6 +454,200 @@ async def resetpersonality_command(interaction: discord.Interaction):
     await interaction.response.send_message(
         f"🔄 Personality reset to default!\n"
         f"Previous interactions: {old_interactions}",
+        ephemeral=True
+    )
+
+
+# Hypixel Skyblock Commands
+
+@bot.tree.command(name="sblink", description="Link your Minecraft username for Skyblock stats")
+@app_commands.describe(username="Your Minecraft username")
+async def sblink_command(interaction: discord.Interaction, username: str):
+    """Link Discord account to Minecraft username."""
+    await interaction.response.defer(ephemeral=True)
+
+    # Get UUID from username
+    uuid = await hypixel_client.get_uuid_from_username(username)
+
+    if not uuid:
+        await interaction.followup.send(
+            f"❌ Could not find Minecraft user: **{username}**\n"
+            f"Make sure the username is correct!",
+            ephemeral=True
+        )
+        return
+
+    # Store the link
+    user_profiles.link_user(interaction.user.id, username, uuid)
+
+    await interaction.followup.send(
+        f"✅ Linked your Discord to Minecraft account: **{username}**\n"
+        f"You can now use `/sb` to view your Skyblock progress!",
+        ephemeral=True
+    )
+
+
+@bot.tree.command(name="sb", description="View your Hypixel Skyblock progress and get tips")
+@app_commands.describe(username="Minecraft username (optional if you've linked your account)")
+async def sb_command(interaction: discord.Interaction, username: str = None):
+    """View Skyblock stats and progression tips."""
+    await interaction.response.defer()
+
+    # Determine which username to use
+    if username:
+        # Use provided username
+        uuid = await hypixel_client.get_uuid_from_username(username)
+        display_name = username
+    else:
+        # Use linked account
+        if not user_profiles.is_linked(interaction.user.id):
+            await interaction.followup.send(
+                "❌ You haven't linked your Minecraft account!\n"
+                "Use `/sblink <username>` to link your account first, "
+                "or provide a username: `/sb username:<name>`"
+            )
+            return
+
+        uuid = user_profiles.get_uuid(interaction.user.id)
+        display_name = user_profiles.get_username(interaction.user.id)
+
+    if not uuid:
+        await interaction.followup.send(
+            f"❌ Could not find Minecraft user: **{display_name}**"
+        )
+        return
+
+    # Check if Hypixel API key is configured
+    if not config.HYPIXEL_API_KEY:
+        await interaction.followup.send(
+            "❌ Hypixel API key not configured!\n"
+            "An admin needs to set `HYPIXEL_API_KEY` in Railway environment variables."
+        )
+        return
+
+    # Fetch Skyblock data
+    profile = await hypixel_client.get_active_profile(uuid)
+
+    if not profile:
+        await interaction.followup.send(
+            f"❌ No Skyblock profiles found for **{display_name}**\n"
+            "Make sure you have played Hypixel Skyblock!"
+        )
+        return
+
+    player_data = await hypixel_client.get_player_data_from_profile(profile, uuid)
+
+    if not player_data:
+        await interaction.followup.send(
+            f"❌ Could not load player data for **{display_name}**"
+        )
+        return
+
+    # Analyze the data
+    skill_analysis = skyblock_analyzer.analyze_skills(player_data)
+    slayer_analysis = skyblock_analyzer.analyze_slayers(player_data)
+
+    # Generate summary
+    profile_name = profile.get('cute_name', 'Unknown')
+    summary = f"🏝️ **Skyblock Profile: {profile_name}** (Player: {display_name})\n\n"
+
+    # Skills
+    if skill_analysis:
+        skill_avg = skill_analysis.get('skill_average', 0)
+        summary += f"📊 **Skill Average:** {skill_avg:.1f}\n\n"
+
+        # Show all main skills
+        summary += "**Skills:**\n"
+        skills = skill_analysis.get('skills', {})
+        main_skills = ['combat', 'mining', 'farming', 'foraging', 'fishing', 'enchanting', 'alchemy', 'taming']
+
+        for skill_name in main_skills:
+            if skill_name in skills:
+                skill_data = skills[skill_name]
+                level = skill_data['level']
+                progress = skill_data.get('progress', 0)
+                filled = int(progress / 10)
+                empty = 10 - filled
+                bar = f"{'█' * filled}{'░' * empty}"
+                summary += f"**{skill_name.title()}** {level} {bar} {progress:.1f}%\n"
+
+    # Slayers
+    if slayer_analysis:
+        total_slayer = slayer_analysis.get('total_slayer_xp', 0)
+        summary += f"\n⚔️ **Total Slayer XP:** {total_slayer:,.0f}\n"
+
+    # Coins
+    purse = player_data.get('coin_purse', 0)
+    summary += f"💰 **Purse:** {purse:,.0f} coins\n"
+
+    await interaction.followup.send(summary)
+
+
+@bot.tree.command(name="sbtips", description="Get personalized Skyblock progression tips")
+@app_commands.describe(username="Minecraft username (optional if you've linked your account)")
+async def sbtips_command(interaction: discord.Interaction, username: str = None):
+    """Get personalized progression advice."""
+    await interaction.response.defer()
+
+    # Determine which username to use
+    if username:
+        uuid = await hypixel_client.get_uuid_from_username(username)
+        display_name = username
+    else:
+        if not user_profiles.is_linked(interaction.user.id):
+            await interaction.followup.send(
+                "❌ You haven't linked your Minecraft account!\n"
+                "Use `/sblink <username>` first."
+            )
+            return
+        uuid = user_profiles.get_uuid(interaction.user.id)
+        display_name = user_profiles.get_username(interaction.user.id)
+
+    if not uuid or not config.HYPIXEL_API_KEY:
+        await interaction.followup.send("❌ Unable to fetch Skyblock data.")
+        return
+
+    # Fetch and analyze data
+    profile = await hypixel_client.get_active_profile(uuid)
+    if not profile:
+        await interaction.followup.send(f"❌ No Skyblock profiles found for **{display_name}**")
+        return
+
+    player_data = await hypixel_client.get_player_data_from_profile(profile, uuid)
+    if not player_data:
+        await interaction.followup.send(f"❌ Could not load player data")
+        return
+
+    # Analyze and get tips
+    skill_analysis = skyblock_analyzer.analyze_skills(player_data)
+    slayer_analysis = skyblock_analyzer.analyze_slayers(player_data)
+
+    analysis = {**skill_analysis, **slayer_analysis}
+    tips = skyblock_analyzer.get_progression_tips(analysis)
+
+    # Format tips
+    tips_message = f"💡 **Progression Tips for {display_name}**\n\n"
+    for tip in tips:
+        tips_message += f"{tip}\n\n"
+
+    await interaction.followup.send(tips_message)
+
+
+@bot.tree.command(name="sbunlink", description="Unlink your Minecraft account")
+async def sbunlink_command(interaction: discord.Interaction):
+    """Unlink Minecraft account from Discord."""
+    if not user_profiles.is_linked(interaction.user.id):
+        await interaction.response.send_message(
+            "❌ You don't have a linked Minecraft account!",
+            ephemeral=True
+        )
+        return
+
+    username = user_profiles.get_username(interaction.user.id)
+    user_profiles.unlink_user(interaction.user.id)
+
+    await interaction.response.send_message(
+        f"✅ Unlinked Minecraft account: **{username}**",
         ephemeral=True
     )
 

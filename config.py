@@ -11,6 +11,9 @@ COMMAND_PREFIX = os.getenv("COMMAND_PREFIX", "!")
 # Anthropic Configuration
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "").strip()
 
+# Hypixel Configuration
+HYPIXEL_API_KEY = os.getenv("HYPIXEL_API_KEY", "").strip()
+
 # Model Selection (dynamic based on complexity)
 CLAUDE_MODEL_SIMPLE = "claude-haiku-4-5-20251001"      # Fast, cheap - simple questions
 CLAUDE_MODEL_MEDIUM = "claude-sonnet-4-5-20250929"     # Balanced - most questions
