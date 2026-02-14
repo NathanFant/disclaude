@@ -198,14 +198,35 @@ Use rate limiting to control costs!
 ### Project Structure
 
 ```
-discord-bot/
-├── bot.py              # Main bot code
-├── config.py           # Configuration management
-├── requirements.txt    # Python dependencies
-├── .env               # Environment variables (create from .env.example)
-├── .env.example       # Example environment file
-├── .gitignore         # Git ignore rules
-└── README.md          # This file
+disclaude/
+├── bot.py                  # Main bot entry point
+├── config.py               # Configuration management
+├── requirements.txt        # Python dependencies
+├── .env.local             # Local environment variables
+├── README.md              # This file
+├── skyblock/              # Skyblock/Hypixel functionality
+│   ├── analyzer.py        # Skill/stats analysis
+│   ├── client.py          # Hypixel API client
+│   └── profiles.py        # User profile storage
+├── agent/                 # Claude AI agent tools
+│   ├── tool_definitions.py            # Standard tool schemas
+│   ├── tool_definitions_emergent.py   # Emergent tool schemas
+│   ├── tools.py                       # Standard tool executors
+│   └── tools_emergent.py              # Emergent tool executors
+├── core/                  # Core bot functionality
+│   ├── personality.py     # Personality tracking
+│   ├── scheduler.py       # Reminder scheduling
+│   └── time_parser.py     # Natural language time parsing
+├── database/              # Database layer
+│   └── db.py              # SQLAlchemy models and setup
+└── docs/                  # Documentation
+    ├── AGENT.md
+    ├── CONTRIBUTING.md
+    ├── DEPLOYMENT.md
+    ├── PERSONALITY.md
+    ├── REMINDERS.md
+    ├── SKYBLOCK.md
+    └── RAILWAY_DATABASE_SETUP.md
 ```
 
 ### Adding Features

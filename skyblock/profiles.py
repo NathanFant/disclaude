@@ -1,6 +1,6 @@
 """User profile storage for linking Discord users to Minecraft usernames."""
 from typing import Optional
-from database import UserProfile, get_db, init_db
+from database.db import UserProfile, get_db, init_db
 
 
 class UserProfiles:

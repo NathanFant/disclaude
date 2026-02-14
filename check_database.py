@@ -12,7 +12,7 @@ if os.path.exists(env_local_path):
                 key, value = line.split('=', 1)
                 os.environ[key] = value
 
-from database import DATABASE_URL, engine, SessionLocal, UserProfile, init_db
+from database.db import DATABASE_URL, engine, SessionLocal, UserProfile, init_db
 
 print("="*70)
 print("DATABASE CONNECTION DIAGNOSTIC")

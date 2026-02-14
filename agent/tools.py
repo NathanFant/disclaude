@@ -6,10 +6,10 @@ from typing import Dict, Any
 import json
 from datetime import datetime
 
-from hypixel_client import hypixel_client
-from skyblock_analyzer import skyblock_analyzer
-from user_profiles import user_profiles
-from scheduler import smart_scheduler
+from skyblock.client import hypixel_client
+from skyblock.analyzer import skyblock_analyzer
+from skyblock.profiles import user_profiles
+from core.scheduler import smart_scheduler
 
 
 class ToolExecutor:

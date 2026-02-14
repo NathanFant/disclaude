@@ -8,18 +8,22 @@ from datetime import datetime, timedelta
 import re
 import config
 import asyncio
-from personality import PersonalityTracker
-from hypixel_client import hypixel_client
-from skyblock_analyzer import skyblock_analyzer
-from user_profiles import user_profiles
-from scheduler import smart_scheduler
-from time_parser import time_parser
+
+# Core functionality
+from core.personality import PersonalityTracker
+from core.scheduler import smart_scheduler
+from core.time_parser import time_parser
+
+# Skyblock
+from skyblock.client import hypixel_client
+from skyblock.analyzer import skyblock_analyzer
+from skyblock.profiles import user_profiles
 
 # Agent tools
-from tool_definitions import TOOLS
-from tool_definitions_emergent import EMERGENT_TOOLS
-from tools import tool_executor
-from tools_emergent import EmergentTools
+from agent.tool_definitions import TOOLS
+from agent.tool_definitions_emergent import EMERGENT_TOOLS
+from agent.tools import tool_executor
+from agent.tools_emergent import EmergentTools
 
 # Initialize Discord bot
 intents = discord.Intents.default()
