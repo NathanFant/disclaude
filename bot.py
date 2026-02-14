@@ -218,18 +218,27 @@ def split_message(text: str, max_length: int = config.MAX_MESSAGE_LENGTH) -> lis
 
 
 async def send_scheduled_message(channel_id: int, message: str):
-    """Send a scheduled message to a channel."""
+    """Send a scheduled message to a channel or DM."""
     try:
+        # Try getting channel from cache first (guild channels)
         channel = bot.get_channel(channel_id)
-        if channel:
-            # Split long messages
-            chunks = split_message(message)
-            for chunk in chunks:
-                await channel.send(chunk)
-        else:
-            print(f"[SCHEDULER] Could not find channel {channel_id}")
+        if not channel:
+            # Try fetching (works for DM channels too)
+            print(f"[SCHEDULER] Channel not in cache, fetching {channel_id}...")
+            try:
+                channel = await bot.fetch_channel(channel_id)
+                print(f"[SCHEDULER] ✅ Fetched channel: {getattr(channel, 'name', 'DM')}")
+            except Exception as e:
+                print(f"[SCHEDULER] ❌ Could not find channel {channel_id}: {e}")
+                return
+
+        # Split and send message
+        chunks = split_message(message)
+        for chunk in chunks:
+            await channel.send(chunk)
+        print(f"[SCHEDULER] ✅ Sent reminder to channel {channel_id}")
     except Exception as e:
-        print(f"[SCHEDULER] Error sending message: {e}")
+        print(f"[SCHEDULER] ❌ Error sending message: {e}")
 
 
 @bot.event
