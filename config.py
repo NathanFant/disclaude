@@ -20,6 +20,12 @@ MAX_MESSAGE_LENGTH = 2000  # Discord's message limit
 RATE_LIMIT_MESSAGES = int(os.getenv("RATE_LIMIT_MESSAGES", "5"))
 RATE_LIMIT_SECONDS = int(os.getenv("RATE_LIMIT_SECONDS", "60"))
 
+# Debug logging
+print(f"[CONFIG] DISCORD_TOKEN length: {len(DISCORD_TOKEN)}")
+print(f"[CONFIG] DISCORD_TOKEN first 10 chars: {DISCORD_TOKEN[:10]}...")
+print(f"[CONFIG] DISCORD_TOKEN last 10 chars: ...{DISCORD_TOKEN[-10:]}")
+print(f"[CONFIG] Raw env var (first 30): {os.getenv('DISCORD_TOKEN', '')[:30]}")
+
 # Validation
 if not DISCORD_TOKEN:
     raise ValueError(
@@ -30,7 +36,9 @@ if len(DISCORD_TOKEN) < 50:
     raise ValueError(
         f"DISCORD_TOKEN appears invalid (length: {len(DISCORD_TOKEN)}). "
         "Discord bot tokens should be longer. "
-        "Check for extra quotes or incomplete token."
+        f"Check for extra quotes or incomplete token.\n"
+        f"Current value starts with: {DISCORD_TOKEN[:20]}...\n"
+        f"This looks like a placeholder or reference variable."
     )
 if not ANTHROPIC_API_KEY:
     raise ValueError(
