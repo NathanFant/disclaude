@@ -511,6 +511,9 @@ async def sblink_command(interaction: discord.Interaction, username: str):
     """Link Discord account to Minecraft username."""
     await interaction.response.defer(ephemeral=True)
 
+    # Build verbose status message
+    status_message = f"**Linking Minecraft Account: {username}**\n\n"
+
     # Get UUID from username
     uuid = await hypixel_client.get_uuid_from_username(username)
 
@@ -522,14 +525,50 @@ async def sblink_command(interaction: discord.Interaction, username: str):
         )
         return
 
+    status_message += f"✅ **UUID Retrieved:** `{uuid}`\n"
+
     # Store the link
     user_profiles.link_user(interaction.user.id, username, uuid)
+    status_message += f"✅ **Account Linked:** Discord ↔ Minecraft\n\n"
 
-    await interaction.followup.send(
-        f"✅ Linked your Discord to Minecraft account: **{username}**\n"
-        f"You can now use `/sb` to view your Skyblock progress!",
-        ephemeral=True
-    )
+    # Try to fetch Skyblock profile
+    if config.HYPIXEL_API_KEY:
+        profile = await hypixel_client.get_active_profile(uuid)
+
+        if profile:
+            status_message += f"✅ **Skyblock Profile Found:** {profile.get('cute_name', 'Unknown')}\n"
+
+            # Try to get player data and skill level
+            player_data = await hypixel_client.get_player_data_from_profile(profile, uuid)
+
+            if player_data:
+                skill_analysis = skyblock_analyzer.analyze_skills(player_data)
+
+                if skill_analysis:
+                    skill_avg = skill_analysis.get('skill_average', 0)
+                    status_message += f"📊 **Skill Average:** {skill_avg:.1f}\n\n"
+
+                    # Show top 3 skills
+                    skills = skill_analysis.get('skills', {})
+                    if skills:
+                        sorted_skills = sorted(skills.items(), key=lambda x: x[1]['level'], reverse=True)[:3]
+                        status_message += "**Top Skills:**\n"
+                        for skill_name, skill_data in sorted_skills:
+                            level = skill_data['level']
+                            status_message += f"• {skill_name.title()}: Level {level}\n"
+                else:
+                    status_message += "⚠️ No skill data available\n"
+            else:
+                status_message += "⚠️ Could not load player data from profile\n"
+        else:
+            status_message += "⚠️ **No Skyblock Profile Found**\n"
+            status_message += "_Make sure you've played Hypixel Skyblock!_\n"
+    else:
+        status_message += "⚠️ **Hypixel API key not configured** - Can't fetch Skyblock data\n"
+
+    status_message += f"\n🎮 You can now use `/sb` to view detailed stats!"
+
+    await interaction.followup.send(status_message, ephemeral=True)
 
 
 @bot.tree.command(name="sb", description="View your Hypixel Skyblock progress and get tips")
