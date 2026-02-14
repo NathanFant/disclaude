@@ -51,6 +51,9 @@ class SkyblockAnalyzer:
         if not player_data:
             return {}
 
+        # Skills are in player_data['player_data']['experience'] with SKILL_<NAME> format
+        experience_data = player_data.get('player_data', {}).get('experience', {})
+
         skills = [
             'farming', 'mining', 'combat', 'foraging', 'fishing',
             'enchanting', 'alchemy', 'taming', 'carpentry', 'runecrafting', 'social'
@@ -61,8 +64,11 @@ class SkyblockAnalyzer:
         skill_count = 0
 
         for skill in skills:
-            xp_key = f'experience_skill_{skill}'
-            xp = player_data.get(xp_key, 0)
+            # Try new format first (SKILL_UPPERCASE), then old format for backwards compatibility
+            xp_key_new = f'SKILL_{skill.upper()}'
+            xp_key_old = f'experience_skill_{skill}'
+
+            xp = experience_data.get(xp_key_new, player_data.get(xp_key_old, 0))
 
             level, progress = self.calculate_skill_level(xp, skill)
 
