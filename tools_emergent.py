@@ -42,8 +42,14 @@ class EmergentTools:
         - "send a message to #general"
         - "notify everyone in the channel"
         """
+        print(f"[EMERGENT] send_discord_message called")
+        print(f"[EMERGENT]   Target: {input_data.get('target')}")
+        print(f"[EMERGENT]   Message: {input_data.get('message', '')[:50]}...")
+        print(f"[EMERGENT]   Repeat: {input_data.get('repeat', 1)}")
+
         # Rate limit: 20 messages per minute
         if not self._check_rate_limit('send_message', 20, 1):
+            print(f"[EMERGENT] ERROR: Rate limit exceeded")
             return json.dumps({
                 "error": "Rate limit exceeded",
                 "message": "Too many messages sent recently. Please wait."
@@ -54,6 +60,7 @@ class EmergentTools:
         repeat = min(input_data.get('repeat', 1), 50)  # Cap at 50 for safety
 
         if not target or not message:
+            print(f"[EMERGENT] ERROR: Missing target or message")
             return json.dumps({"error": "Missing target or message", "success": False})
 
         # Parse target
@@ -64,43 +71,68 @@ class EmergentTools:
         # <@123> or <@!123> = user mention
         if target.startswith('<@') and target.endswith('>'):
             target_id = int(target.replace('<@', '').replace('!', '').replace('>', ''))
+            print(f"[EMERGENT] Detected user mention, ID: {target_id}")
             try:
                 recipient = await self.bot.fetch_user(target_id)
                 target_type = 'user'
+                print(f"[EMERGENT] ✅ Found user: {recipient.name}")
             except Exception as e:
+                print(f"[EMERGENT] ❌ User fetch failed: {str(e)}")
                 return json.dumps({"error": f"User not found: {target_id} ({str(e)})", "success": False})
 
         # <#123> = channel mention
         elif target.startswith('<#') and target.endswith('>'):
             target_id = int(target.replace('<#', '').replace('>', ''))
+            print(f"[EMERGENT] Detected channel mention, ID: {target_id}")
             recipient = self.bot.get_channel(target_id)
             if recipient:
                 target_type = 'channel'
+                print(f"[EMERGENT] ✅ Found channel: {recipient.name}")
             else:
+                print(f"[EMERGENT] ❌ Channel not in cache")
+                # Log available channels for debugging
+                all_channels = [f"{c.name} ({c.id})" for g in self.bot.guilds for c in g.channels[:5]]
+                print(f"[EMERGENT] Available channels (first 5 per guild): {all_channels}")
                 return json.dumps({"error": f"Channel not found: {target_id}", "success": False})
 
         # Just digits = try channel first, then user
         elif target.isdigit():
             target_id = int(target)
+            print(f"[EMERGENT] Detected bare ID: {target_id}")
 
             # Try as channel first (faster, uses cache)
             recipient = self.bot.get_channel(target_id)
             if recipient:
                 target_type = 'channel'
+                print(f"[EMERGENT] ✅ Found as channel: {recipient.name}")
             else:
+                print(f"[EMERGENT] Not found as channel, trying user...")
                 # Try as user (slower, makes API call)
                 try:
                     recipient = await self.bot.fetch_user(target_id)
                     target_type = 'user'
-                except Exception:
+                    print(f"[EMERGENT] ✅ Found as user: {recipient.name}")
+                except Exception as e:
+                    print(f"[EMERGENT] ❌ Not found as user either: {str(e)}")
+                    # Debug info
+                    guilds = [f"{g.name} ({g.id})" for g in self.bot.guilds]
+                    print(f"[EMERGENT] Bot is in {len(self.bot.guilds)} guild(s): {guilds}")
+                    all_channels = [f"{c.name} ({c.id})" for g in self.bot.guilds for c in g.text_channels[:3]]
+                    print(f"[EMERGENT] Available text channels (first 3 per guild): {all_channels}")
                     return json.dumps({
                         "error": f"Target not found: {target_id} (tried both channel and user)",
-                        "success": False
+                        "success": False,
+                        "debug_info": {
+                            "guilds": guilds,
+                            "sample_channels": all_channels
+                        }
                     })
         else:
+            print(f"[EMERGENT] ERROR: Invalid target format: {target}")
             return json.dumps({"error": f"Invalid target format: {target}", "success": False})
 
         if not recipient:
+            print(f"[EMERGENT] ERROR: Recipient is None after parsing")
             return json.dumps({
                 "error": f"Failed to get recipient: {target}",
                 "success": False
@@ -162,16 +194,36 @@ class EmergentTools:
         - "did I already answer this?"
         - "what was the user asking about?"
         """
+        print(f"[EMERGENT] read_message_history called")
+        print(f"[EMERGENT]   Channel ID: {input_data.get('channel_id')}")
+        print(f"[EMERGENT]   Limit: {input_data.get('limit', 50)}")
+
         channel_id = input_data.get('channel_id')
         limit = min(input_data.get('limit', 50), 100)  # Cap at 100
 
         if not channel_id:
+            print(f"[EMERGENT] ERROR: Missing channel_id")
             return json.dumps({"error": "Missing channel_id", "success": False})
 
         try:
             channel = self.bot.get_channel(int(channel_id))
             if not channel:
-                return json.dumps({"error": "Channel not found", "success": False})
+                print(f"[EMERGENT] ❌ Channel not found: {channel_id}")
+                # Debug info
+                guilds = [f"{g.name} ({g.id})" for g in self.bot.guilds]
+                print(f"[EMERGENT] Bot is in {len(self.bot.guilds)} guild(s): {guilds}")
+                all_channels = [f"{c.name} ({c.id})" for g in self.bot.guilds for c in g.text_channels[:5]]
+                print(f"[EMERGENT] Available text channels (first 5 per guild): {all_channels}")
+                return json.dumps({
+                    "error": "Channel not found",
+                    "success": False,
+                    "debug_info": {
+                        "requested_id": channel_id,
+                        "available_channels": all_channels
+                    }
+                })
+
+            print(f"[EMERGENT] ✅ Found channel: {channel.name}")
 
             messages = []
             async for msg in channel.history(limit=limit):

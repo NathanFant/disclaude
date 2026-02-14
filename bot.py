@@ -223,6 +223,17 @@ async def on_ready():
     print(f'{bot.user} has connected to Discord!')
     print(f'Bot is in {len(bot.guilds)} guilds')
 
+    # Log detailed guild and channel info for debugging
+    print("\n[DEBUG] Guild and Channel Information:")
+    for guild in bot.guilds:
+        print(f"\n  Guild: {guild.name} (ID: {guild.id})")
+        print(f"    Members: {guild.member_count}")
+        print(f"    Text Channels ({len(guild.text_channels)}):")
+        for channel in guild.text_channels[:10]:  # First 10 channels
+            print(f"      - {channel.name} (ID: {channel.id})")
+        if len(guild.text_channels) > 10:
+            print(f"      ... and {len(guild.text_channels) - 10} more")
+
     # Start scheduler
     smart_scheduler.start()
 
