@@ -59,9 +59,9 @@ pip install -r requirements.txt
 
 ```bash
 # Copy example environment file
-cp .env.example .env
+cp .env.example .env.local
 
-# Edit .env with your credentials
+# Edit .env.local with your credentials
 # You need:
 # - DISCORD_TOKEN (from Discord Developer Portal)
 # - ANTHROPIC_API_KEY (from console.anthropic.com)
@@ -95,7 +95,7 @@ Synced 4 slash command(s)
 
 ## Configuration
 
-Edit `.env` to customize:
+Edit `.env.local` to customize:
 
 ```env
 # Bot behavior

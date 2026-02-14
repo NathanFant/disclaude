@@ -2,7 +2,9 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+# Only load .env.local for local development, not .env.example
+# Railway will inject environment variables directly, so this won't override them
+load_dotenv(".env.local", override=False)
 
 # Discord Configuration
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", "").strip()
