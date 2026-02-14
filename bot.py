@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import re
 import config
 import asyncio
+from personality import PersonalityTracker
 
 # Initialize Discord bot
 intents = discord.Intents.default()
@@ -22,6 +23,9 @@ conversations = defaultdict(lambda: deque(maxlen=config.MAX_CONVERSATION_HISTORY
 
 # Rate limiting: {user_id: deque of timestamps}
 rate_limits = defaultdict(lambda: deque(maxlen=config.RATE_LIMIT_MESSAGES))
+
+# Personality tracker
+personality = PersonalityTracker()
 
 
 def check_rate_limit(user_id: int) -> bool:
@@ -87,11 +91,15 @@ async def get_claude_response(messages: list, model: str = None) -> str:
         last_message = messages[-1]['content'] if messages else ""
         model = determine_model_complexity(last_message, messages)
 
+    # Get evolving personality system prompt
+    system_prompt = personality.get_system_prompt()
+
     try:
         response = await asyncio.to_thread(
             client.messages.create,
             model=model,
             max_tokens=2048,  # Increased for better responses
+            system=system_prompt,  # Evolving personality
             messages=messages
         )
         return response.content[0].text
@@ -201,6 +209,9 @@ async def on_message(message):
             mention_author=False
         )
         return
+
+    # Record interaction for personality evolution
+    personality.record_interaction(message.author.id, content)
 
     # Add user message to conversation
     conversation.append({"role": "user", "content": content})
@@ -369,6 +380,77 @@ async def clearall_command(interaction: discord.Interaction):
 
     await interaction.response.send_message(
         f"🗑️ Cleared {count} conversation histories!",
+        ephemeral=True
+    )
+
+
+@bot.tree.command(name="personality", description="View the bot's current personality traits")
+async def personality_command(interaction: discord.Interaction):
+    """View bot's evolving personality."""
+    summary = personality.get_personality_summary()
+    traits = summary['traits']
+
+    # Create trait bars
+    def trait_bar(value: int) -> str:
+        filled = int(value / 10)
+        empty = 10 - filled
+        return f"{'█' * filled}{'░' * empty} {value}%"
+
+    personality_info = (
+        f"🎭 **Bot Personality**\n\n"
+        f"**Traits:**\n"
+        f"😊 Friendliness: {trait_bar(traits['friendliness'])}\n"
+        f"🎩 Formality: {trait_bar(traits['formality'])}\n"
+        f"😄 Humor: {trait_bar(traits['humor'])}\n"
+        f"📝 Verbosity: {trait_bar(traits['verbosity'])}\n"
+        f"🤝 Helpfulness: {trait_bar(traits['helpfulness'])}\n\n"
+        f"**Experience:**\n"
+        f"• Interactions: {summary['interactions']}\n"
+        f"• Unique users: {summary['unique_users']}\n"
+        f"• Uptime: {summary['uptime_hours']:.1f} hours\n\n"
+    )
+
+    if summary['top_topics']:
+        topics_str = ", ".join(f"{k} ({v})" for k, v in list(summary['top_topics'].items())[:3])
+        personality_info += f"**Top Topics:** {topics_str}\n"
+
+    await interaction.response.send_message(personality_info, ephemeral=True)
+
+
+@bot.tree.command(name="systemprompt", description="[Admin] View current system prompt")
+async def systemprompt_command(interaction: discord.Interaction):
+    """Admin command to view the current personality system prompt."""
+    if not is_admin(interaction.user.id):
+        await interaction.response.send_message(
+            "❌ This command is only available to bot administrators.",
+            ephemeral=True
+        )
+        return
+
+    system_prompt = personality.get_system_prompt()
+
+    await interaction.response.send_message(
+        f"**Current System Prompt:**\n\n{system_prompt}",
+        ephemeral=True
+    )
+
+
+@bot.tree.command(name="resetpersonality", description="[Admin] Reset personality to default")
+async def resetpersonality_command(interaction: discord.Interaction):
+    """Admin command to reset bot personality."""
+    if not is_admin(interaction.user.id):
+        await interaction.response.send_message(
+            "❌ This command is only available to bot administrators.",
+            ephemeral=True
+        )
+        return
+
+    old_interactions = personality.interaction_count
+    personality.reset_personality()
+
+    await interaction.response.send_message(
+        f"🔄 Personality reset to default!\n"
+        f"Previous interactions: {old_interactions}",
         ephemeral=True
     )
 
