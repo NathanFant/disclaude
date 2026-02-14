@@ -100,20 +100,27 @@ class EmergentTools:
             target_id = int(target)
             print(f"[EMERGENT] Detected bare ID: {target_id}")
 
-            # Try as channel first (faster, uses cache)
+            # Try as channel first (from cache)
             recipient = self.bot.get_channel(target_id)
             if recipient:
                 target_type = 'channel'
-                print(f"[EMERGENT] ✅ Found as channel: {recipient.name}")
+                print(f"[EMERGENT] ✅ Found as channel (cached): {getattr(recipient, 'name', 'DM')}")
             else:
-                print(f"[EMERGENT] Not found as channel, trying user...")
-                # Try as user (slower, makes API call)
+                print(f"[EMERGENT] Not in cache, trying to fetch channel (works for DMs too)...")
+                # Try fetching channel (works for both guild channels and DMs)
                 try:
-                    recipient = await self.bot.fetch_user(target_id)
-                    target_type = 'user'
-                    print(f"[EMERGENT] ✅ Found as user: {recipient.name}")
+                    recipient = await self.bot.fetch_channel(target_id)
+                    target_type = 'channel'
+                    print(f"[EMERGENT] ✅ Found as channel (fetched): {getattr(recipient, 'name', 'DM')}")
                 except Exception as e:
-                    print(f"[EMERGENT] ❌ Not found as user either: {str(e)}")
+                    print(f"[EMERGENT] Not found as channel: {str(e)}, trying user...")
+                    # Try as user
+                    try:
+                        recipient = await self.bot.fetch_user(target_id)
+                        target_type = 'user'
+                        print(f"[EMERGENT] ✅ Found as user: {recipient.name}")
+                    except Exception as e2:
+                        print(f"[EMERGENT] ❌ Not found as user either: {str(e2)}")
                     # Debug info
                     guilds = [f"{g.name} ({g.id})" for g in self.bot.guilds]
                     print(f"[EMERGENT] Bot is in {len(self.bot.guilds)} guild(s): {guilds}")
@@ -206,24 +213,31 @@ class EmergentTools:
             return json.dumps({"error": "Missing channel_id", "success": False})
 
         try:
+            # Try getting channel from cache first
             channel = self.bot.get_channel(int(channel_id))
             if not channel:
-                print(f"[EMERGENT] ❌ Channel not found: {channel_id}")
-                # Debug info
-                guilds = [f"{g.name} ({g.id})" for g in self.bot.guilds]
-                print(f"[EMERGENT] Bot is in {len(self.bot.guilds)} guild(s): {guilds}")
-                all_channels = [f"{c.name} ({c.id})" for g in self.bot.guilds for c in g.text_channels[:5]]
-                print(f"[EMERGENT] Available text channels (first 5 per guild): {all_channels}")
-                return json.dumps({
-                    "error": "Channel not found",
-                    "success": False,
-                    "debug_info": {
-                        "requested_id": channel_id,
-                        "available_channels": all_channels
-                    }
-                })
-
-            print(f"[EMERGENT] ✅ Found channel: {channel.name}")
+                print(f"[EMERGENT] Not in cache, trying to fetch channel (works for DMs)...")
+                # Try fetching (works for DM channels too)
+                try:
+                    channel = await self.bot.fetch_channel(int(channel_id))
+                    print(f"[EMERGENT] ✅ Found channel via fetch: {getattr(channel, 'name', 'DM')}")
+                except Exception as e:
+                    print(f"[EMERGENT] ❌ Channel not found: {channel_id} ({str(e)})")
+                    # Debug info
+                    guilds = [f"{g.name} ({g.id})" for g in self.bot.guilds]
+                    print(f"[EMERGENT] Bot is in {len(self.bot.guilds)} guild(s): {guilds}")
+                    all_channels = [f"{c.name} ({c.id})" for g in self.bot.guilds for c in g.text_channels[:5]]
+                    print(f"[EMERGENT] Available text channels (first 5 per guild): {all_channels}")
+                    return json.dumps({
+                        "error": "Channel not found",
+                        "success": False,
+                        "debug_info": {
+                            "requested_id": channel_id,
+                            "available_channels": all_channels
+                        }
+                    })
+            else:
+                print(f"[EMERGENT] ✅ Found channel in cache: {getattr(channel, 'name', 'DM')}")
 
             messages = []
             async for msg in channel.history(limit=limit):
