@@ -263,6 +263,105 @@ async def keep_hypixel_api_alive():
         print(f"[SCHEDULER] ❌ Hypixel API keep-alive failed: {e}")
 
 
+async def send_deploy_notification():
+    """Send Skyblock stats to owner on bot deployment."""
+    if not config.DISCORD_OWNER_ID:
+        print("[DEPLOY] No DISCORD_OWNER_ID set, skipping deploy notification")
+        return
+
+    try:
+        print(f"[DEPLOY] Sending deployment notification to user {config.DISCORD_OWNER_ID}")
+
+        # Get the owner user
+        owner = await bot.fetch_user(config.DISCORD_OWNER_ID)
+        if not owner:
+            print("[DEPLOY] ❌ Could not fetch owner user")
+            return
+
+        # Check if user has linked account
+        if not user_profiles.is_linked(config.DISCORD_OWNER_ID):
+            await owner.send(
+                "🚀 **Bot Deployed Successfully!**\n\n"
+                "Link your Minecraft account with `/sblink <username>` to receive your stats on deploy!"
+            )
+            print("[DEPLOY] ✅ Sent basic deploy notification (no linked account)")
+            return
+
+        # Get user's Minecraft info
+        uuid = user_profiles.get_uuid(config.DISCORD_OWNER_ID)
+        username = user_profiles.get_username(config.DISCORD_OWNER_ID)
+
+        # Fetch Skyblock data
+        profile = await hypixel_client.get_active_profile(uuid)
+        if not profile:
+            await owner.send(
+                f"🚀 **Bot Deployed Successfully!**\n\n"
+                f"❌ Could not fetch Skyblock profile for **{username}**"
+            )
+            print("[DEPLOY] ⚠️ Could not fetch Skyblock profile")
+            return
+
+        player_data = await hypixel_client.get_player_data_from_profile(profile, uuid)
+        if not player_data:
+            await owner.send(
+                f"🚀 **Bot Deployed Successfully!**\n\n"
+                f"❌ Could not load player data for **{username}**"
+            )
+            print("[DEPLOY] ⚠️ Could not load player data")
+            return
+
+        # Analyze data
+        skill_analysis = skyblock_analyzer.analyze_skills(player_data)
+        slayer_analysis = skyblock_analyzer.analyze_slayers(player_data)
+
+        # Build summary message
+        profile_name = profile.get('cute_name', 'Unknown')
+        message = f"🚀 **Bot Deployed Successfully!**\n\n"
+        message += f"🏝️ **Skyblock Profile: {profile_name}** (Player: {username})\n\n"
+
+        # Skills
+        if skill_analysis:
+            skill_avg = skill_analysis.get('skill_average', 0)
+            message += f"📊 **Skill Average:** {skill_avg:.1f}\n\n"
+
+            # Show top 3 skills
+            skills = skill_analysis.get('skills', {})
+            if skills:
+                sorted_skills = sorted(skills.items(), key=lambda x: x[1]['level'], reverse=True)[:3]
+                message += "**Top Skills:**\n"
+                for skill_name, skill_data in sorted_skills:
+                    level = skill_data['level']
+                    message += f"• {skill_name.title()}: Level {level}\n"
+                message += "\n"
+
+        # Slayers
+        if slayer_analysis:
+            total_slayer = slayer_analysis.get('total_slayer_xp', 0)
+            message += f"⚔️ **Total Slayer XP:** {total_slayer:,.0f}\n\n"
+
+        # Coins
+        purse = player_data.get('currencies', {}).get('coin_purse', 0)
+        message += f"💰 **Purse:** {purse:,.2f} coins\n"
+
+        # Bank
+        if 'banking' in profile:
+            bank_balance = profile['banking'].get('balance', 0)
+            message += f"🏦 **Bank:** {bank_balance:,.2f} coins\n"
+
+        message += f"\n_Use `/sb` anytime to check your stats!_"
+
+        # Send the DM
+        await owner.send(message)
+        print(f"[DEPLOY] ✅ Sent Skyblock stats to {username}")
+
+    except discord.Forbidden:
+        print(f"[DEPLOY] ❌ Cannot send DM to user {config.DISCORD_OWNER_ID} (DMs disabled)")
+    except Exception as e:
+        print(f"[DEPLOY] ❌ Error sending deploy notification: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 @bot.event
 async def on_ready():
     """Bot startup event."""
@@ -297,6 +396,9 @@ async def on_ready():
         print(f'Synced {len(synced)} slash command(s)')
     except Exception as e:
         print(f'Failed to sync commands: {e}')
+
+    # Send deployment notification with Skyblock stats
+    await send_deploy_notification()
 
 
 def is_bot_mentioned(message) -> bool:

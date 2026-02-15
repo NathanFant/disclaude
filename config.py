@@ -33,6 +33,14 @@ ADMIN_USER_IDS = os.getenv("ADMIN_USER_IDS", "").strip()
 ADMIN_LIST = [int(uid.strip()) for uid in ADMIN_USER_IDS.split(",") if uid.strip()]
 print(f"[CONFIG] Loaded {len(ADMIN_LIST)} admin user(s)")
 
+# Owner Configuration (for DM notifications)
+DISCORD_OWNER_ID = os.getenv("DISCORD_OWNER_ID", "").strip()
+if DISCORD_OWNER_ID:
+    DISCORD_OWNER_ID = int(DISCORD_OWNER_ID)
+    print(f"[CONFIG] Owner ID set for DM notifications: {DISCORD_OWNER_ID}")
+else:
+    DISCORD_OWNER_ID = None
+
 # Validation
 if not DISCORD_TOKEN:
     raise ValueError(
