@@ -1,6 +1,7 @@
 """Smart scheduler for reminders and cron jobs."""
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.date import DateTrigger
+from apscheduler.triggers.cron import CronTrigger
 from datetime import datetime
 from typing import Optional, Dict, Any, Callable
 import asyncio
@@ -105,6 +106,34 @@ class SmartScheduler:
     def get_task_count(self) -> int:
         """Get total number of scheduled tasks."""
         return len(self.scheduled_tasks)
+
+    def schedule_daily_task(
+        self,
+        task_id: str,
+        task_function: Callable,
+        hour: int = 20,
+        minute: int = 0
+    ) -> None:
+        """Schedule a daily recurring task.
+
+        Args:
+            task_id: Unique identifier for the task
+            task_function: Async function to run daily
+            hour: Hour to run (0-23, default 20 for 8pm)
+            minute: Minute to run (0-59, default 0)
+        """
+        try:
+            # Add job with cron trigger for daily execution
+            self.scheduler.add_job(
+                task_function,
+                trigger=CronTrigger(hour=hour, minute=minute),
+                id=task_id,
+                name=f"Daily task: {task_id}",
+                replace_existing=True
+            )
+            print(f"[SCHEDULER] Scheduled daily task '{task_id}' at {hour:02d}:{minute:02d}")
+        except Exception as e:
+            print(f"[SCHEDULER] Error scheduling daily task '{task_id}': {e}")
 
 
 # Global scheduler instance

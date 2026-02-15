@@ -197,7 +197,7 @@ class SkyblockAnalyzer:
 
     def calculate_networth_estimate(self, player_data: Dict[str, Any]) -> float:
         """Rough estimate of networth based on purse and bank."""
-        purse = player_data.get('coin_purse', 0)
+        purse = player_data.get('currencies', {}).get('coin_purse', 0)
 
         # Try to get bank balance (might be in banking data)
         bank = 0
@@ -290,8 +290,8 @@ class SkyblockAnalyzer:
             summary_parts.append(f"\n⚔️ **Total Slayer XP:** {total_slayer:,.0f}")
 
         # Coins
-        purse = player_data.get('coin_purse', 0)
-        summary_parts.append(f"\n💰 **Purse:** {purse:,.0f} coins")
+        purse = player_data.get('currencies', {}).get('coin_purse', 0)
+        summary_parts.append(f"\n💰 **Purse:** {purse:,.2f} coins")
 
         return "\n".join(summary_parts)
 

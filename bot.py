@@ -245,6 +245,24 @@ async def send_scheduled_message(channel_id: int, message: str):
         print(f"[SCHEDULER] ❌ Error sending message: {e}")
 
 
+async def keep_hypixel_api_alive():
+    """Daily task to keep Hypixel API key active by making a request."""
+    try:
+        # Use a known UUID to make a simple API request
+        test_uuid = "47fb7b99858042c3a7b4795af44ea41d"
+        print(f"[SCHEDULER] Running daily Hypixel API keep-alive...")
+
+        # Make API request to keep key active
+        profile = await hypixel_client.get_active_profile(test_uuid)
+
+        if profile:
+            print(f"[SCHEDULER] ✅ Hypixel API keep-alive successful - Profile: {profile.get('cute_name', 'Unknown')}")
+        else:
+            print(f"[SCHEDULER] ⚠️ Hypixel API keep-alive completed but no profile returned")
+    except Exception as e:
+        print(f"[SCHEDULER] ❌ Hypixel API keep-alive failed: {e}")
+
+
 @bot.event
 async def on_ready():
     """Bot startup event."""
@@ -264,6 +282,14 @@ async def on_ready():
 
     # Start scheduler
     smart_scheduler.start()
+
+    # Schedule daily Hypixel API keep-alive task (8pm daily)
+    smart_scheduler.schedule_daily_task(
+        task_id="hypixel_api_keepalive",
+        task_function=keep_hypixel_api_alive,
+        hour=20,  # 8pm
+        minute=0
+    )
 
     # Sync slash commands
     try:
@@ -801,9 +827,14 @@ async def sb_command(interaction: discord.Interaction, username: str = None):
         total_slayer = slayer_analysis.get('total_slayer_xp', 0)
         summary += f"\n⚔️ **Total Slayer XP:** {total_slayer:,.0f}\n"
 
-    # Coins
-    purse = player_data.get('coin_purse', 0)
-    summary += f"💰 **Purse:** {purse:,.0f} coins\n"
+    # Coins - purse is in currencies object
+    purse = player_data.get('currencies', {}).get('coin_purse', 0)
+    summary += f"\n💰 **Purse:** {purse:,.2f} coins\n"
+
+    # Bank - at profile level, not member level
+    if 'banking' in profile:
+        bank_balance = profile['banking'].get('balance', 0)
+        summary += f"🏦 **Bank:** {bank_balance:,.2f} coins\n"
 
     # Split long messages
     chunks = split_message(summary)

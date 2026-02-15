@@ -130,7 +130,8 @@ class ToolExecutor:
             "skill_average": round(skill_analysis.get('skill_average', 0), 1),
             "skills": skills_dict,
             "total_slayer_xp": slayer_analysis.get('total_slayer_xp', 0),
-            "purse": player_data.get('coin_purse', 0)
+            "purse": player_data.get('currencies', {}).get('coin_purse', 0),
+            "bank": profile.get('banking', {}).get('balance', 0)
         }
 
         return json.dumps(result)
